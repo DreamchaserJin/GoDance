@@ -13,15 +13,15 @@ import (
 **/
 type ClusterState struct {
 	//当前版本号，每次更新加1
-	version int64
-	//该state对应的唯一id
-	stateUUID string
-	//所有index的路由表，用于描述所有分片的状态，用于路由操作，比如找到相关节点
-	routingTable routing.Table
+	Version int64
+	//主节点任期
+	Term int64
+	// CurMaster 当前的主节点ID
+	CurMaster int64
+	//所有table的路由表，用于描述所有table的状态，用于根据table类型找到分片路由
+	RoutingTable routing.TableRooting
 	//当前集群节点
-	nodes node.DiscoveryNodes
-	//集群的meta数据
-	metaData MetaData
+	Nodes node.DiscoveryNodes
 	//集群名称
-	clusterName string
+	ClusterName string
 }
