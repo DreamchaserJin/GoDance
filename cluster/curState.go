@@ -2,21 +2,8 @@ package cluster
 
 import (
 	"cluster/metaData"
+	"cluster/node"
 	"sync"
-)
-
-// CMState 节点状态
-type CMState int
-
-const (
-	// Leader 领导者
-	Leader CMState = iota
-	// Candidate 候选者
-	Candidate
-	// Follower 跟随者
-	Follower
-	// Dead 宕机状态
-	Dead
 )
 
 var (
@@ -42,7 +29,7 @@ type SelfState struct {
 	//节点参数
 	Attributes map[string]string
 	//当前节点状态
-	State CMState
+	State node.CMState
 	//当前节点认为的主节点Id
 	MasterId int64
 	//任期
