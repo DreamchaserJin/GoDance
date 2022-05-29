@@ -2,6 +2,7 @@ package raft
 
 import (
 	"cluster"
+	"cluster/node"
 	"configs"
 	"log"
 	"math/rand"
@@ -70,7 +71,7 @@ type Server struct {
 }
 
 // RequestVote 请求投票，候选节点通过rpc远程调用从节点的拉票方法来获取票数
-func (c *Server) RequestVote(r *VoteRequest, res *VoteResponse) error {
+func (s *Server) RequestVote(r *VoteRequest, res *VoteResponse) error {
 	//重置心跳
 	heartBeat = time.Now()
 	defer mutex.RUnlock()
@@ -109,7 +110,7 @@ func (c *Server) RequestVote(r *VoteRequest, res *VoteResponse) error {
 //}
 
 // HeatBeat 探活请求，由主节点来调用此RPC方法
-func (c *Server) HeatBeat(r *VoteRequest, res *EntryResponse) error {
+func (s *Server) HeatBeat(r *VoteRequest, res *EntryResponse) error {
 	self := cluster.State.SelfState
 	res.state = cluster.State.SelfState.State
 	//如果发现小于自己任期时，拒绝承认该节点
@@ -130,8 +131,12 @@ func (c *Server) HeatBeat(r *VoteRequest, res *EntryResponse) error {
 	}
 	return nil
 }
+func (s *Server) tryJoin(n *node.DiscoveryNode, r *CommonResponse) {
+	if cluster.State.SelfState.State != node.Leader {
+		r.success = false
+	}
+}
 
 //todo 用于拉取数据
 func pullMeta() {
-
 }
