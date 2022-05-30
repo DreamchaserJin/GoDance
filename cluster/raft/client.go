@@ -2,95 +2,122 @@ package raft
 
 import (
 	"cluster"
+	"cluster/node"
+	"configs"
+	"log"
 	"math/rand"
+	"net/rpc"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-var (
-	//上一次投票的任期
-	lastTerm int64 = 0
-	//距离上次正式选举成功之后投票的节点,key是节点，val是任期，每次选举成功则会清除
-	votedNodes map[int64]int64
-	//上一次心跳请求的时间
-	heartBeat time.Time = time.Now()
-	//读写锁，用于同步
-	mutex sync.RWMutex
-)
+var clients []*rpc.Client = nil
 
-func init() {
-	heartBeat = time.Now()
-	go func() {
-		for {
-			//定期检查主节点是否近期发送过探活请求
-			randomTimeOut := rand.Intn(2000)
-			//如果超时没收到心跳
-			if time.Now().Sub(heartBeat).Milliseconds() > int64(randomTimeOut) {
-				//如果是候选节点则开始选举自己为主节点
-				if cluster.State.SelfState.IsCandidate {
-					tryElection()
-				} else {
-					tryJoin()
-				}
-			}
-			time.Sleep(1000)
+//尝试选举自己为主节点
+//选举策略：像候选主节点发送拉票RPC消息，超过配置中设置的则选举成功
+func tryElection() {
+	//更新自身状态为候选者
+	cluster.State.SelfState.State = node.Candidate
+	config := configs.Config.NodeConfig
+	candidateNodes := cluster.State.ClusterState.Nodes.CandidateNodes
+
+	clients = make([]*rpc.Client, len(candidateNodes))
+	i := 0
+	for _, v := range candidateNodes {
+		//todo 这里需要处理rpc连接失败的情况
+		client, err := rpc.DialHTTP("tcp", v.HostAddress+":1000")
+		if err != nil {
+			log.Fatal("election 1阶段 rpc client init failed,dialing:", err)
 		}
-	}()
-}
-
-type Client struct {
-}
-
-// RequestVote 请求投票，候选节点通过rpc远程调用从节点的拉票方法来获取票数
-func (c *Client) RequestVote(r VoteRequest) (isVote bool) {
-	//重置心跳
-	heartBeat = time.Now()
-	defer mutex.RUnlock()
-	mutex.RLock()
-	state := cluster.State.ClusterState
-	//之前相同任期内投过票的节点也会投票，此举是为了保证幂等性
-	if votedNodes[r.id] == r.term {
-		return true
+		clients[i] = client
+		i += 1
 	}
-	//数据版本大于等于自身且超过自身投过的任期时，才会支持该节点
-	if r.version >= state.Version && r.term >= lastTerm {
-		defer mutex.Unlock()
-		mutex.Lock()
-		lastTerm = r.term
-		votedNodes[r.id] = r.term
-		return true
+	//todo 选举 要考虑超时的情况
+	for {
+		cluster.State.SelfState.Term = cluster.State.SelfState.Term + 1
+		r := VoteRequest{
+			term:    cluster.State.SelfState.Term,
+			version: cluster.State.ClusterState.Version,
+			id:      cluster.State.SelfState.NodeId,
+		}
+		var sum uint32 = 0
+		var wg sync.WaitGroup
+		wg.Add(len(candidateNodes))
+		//一阶段选举投票
+		beginVote(&r, &sum, &wg)
+		wg.Wait()
+		//如果大于配置的“大多数”，且身份依旧是候选者（即在这期间没有收到过其他任期更高的心跳）
+		if sum >= configs.Config.NodeConfig.ElectionMin && cluster.State.SelfState.State == node.Candidate {
+			//晋升自己为领导者
+			cluster.State.SelfState.State = node.Leader
+			//开始向其他节点发送心跳
+			go heatBeat()
+			break
+		}
+		//否则选举在随机时间后重新开始
+		randomElection := rand.Intn(config.ElectionTimeMax-config.ElectionTimeMin) + config.ElectionTimeMin
+		time.Sleep(time.Duration(randomElection))
 	}
-	return false
-}
 
-// ConfirmVote 拉票请求的第二阶段，确定选举，此时说明主节点获得大多数选票，此种情况会调用所有已知节点的rpc
-func (c *Client) ConfirmVote(r VoteRequest) {
-	clusterState := cluster.State.ClusterState
-	//当任期大于当前主节点的term时，才会转移
-	if r.term > clusterState.Term {
-		cluster.State.Mutex.Lock()
-		cluster.State.SelfState.MasterId = r.id
-		//重置节点
-		heartBeat = time.Now()
-		cluster.State.Mutex.Unlock()
-	}
 }
-
-// AppendEntries 探活请求，由主节点来调用此RPC方法
-func (c *Client) AppendEntries(r VoteRequest) {
-	self := cluster.State.SelfState
-	//当发现探活请求的主节点和自己认为的主节点不一致且任期比自己的大时，切换主节点
-	if self.MasterId != r.id && r.term > self.Term {
-		self.MasterId = r.id
-	}
-	heartBeat = time.Now()
-	//当检测到主节点和从节点数据版本不一致时，开始拉数据
-	if r.version > cluster.State.ClusterState.Version {
-		pullMeta()
+func beginVote(r *VoteRequest, sum *uint32, wg *sync.WaitGroup) {
+	for _, c := range clients {
+		var res VoteResponse
+		divCall := c.Go("Server.RequestVote", &r, &res, nil)
+		replyCall := <-divCall.Done
+		//异步处理返回值
+		go func() {
+			defer c.Close()
+			if replyCall.Error != nil {
+				log.Fatal("arith error:", replyCall.Error)
+			}
+			//累加票数
+			if res.success {
+				atomic.AddUint32(sum, 1)
+			}
+			wg.Done()
+		}()
 	}
 }
 
-//todo 用于拉取数据
-func pullMeta() {
+//开始定时向其他节点发送心跳
+func heatBeat() {
+	min := configs.Config.NodeConfig.HeartBeatMin
+	for _, n := range cluster.State.ClusterState.Nodes.Nodes {
+		//不给自己发心跳
+		if n.NodeId == cluster.State.SelfState.NodeId {
+			continue
+		}
+		//todo 这里需要处理rpc连接失败的情况
+		client, err := rpc.DialHTTP("tcp", n.HostAddress+":1000")
+		if err != nil {
+			log.Fatal("election 1阶段 rpc client init failed,dialing:", err)
+		}
+		//为每个节点开启一个协程,定时发送心跳
+		go func() {
+			defer client.Close()
+			var res VoteResponse
+			for {
+				//当自身不是领导者时，不再发送
+				if cluster.State.SelfState.State != node.Leader {
+					break
+				}
+				r := VoteRequest{
+					term:    cluster.State.SelfState.Term,
+					version: cluster.State.ClusterState.Version,
+					id:      cluster.State.SelfState.NodeId,
+				}
+				// rpc调用
+				client.Go("Server.HeatBeat", &r, &res, nil)
+				time.Sleep(time.Duration(min / 2))
+			}
+		}()
+	}
+
+}
+
+//尝试加入节点
+func tryJoin() {
 
 }
