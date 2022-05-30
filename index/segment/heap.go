@@ -1,4 +1,4 @@
-package utils
+package segment
 
 import (
 	"github.com/blevesearch/vellum"
@@ -9,7 +9,7 @@ type FstHeap []*FstNode
 
 type FstNode struct {
 	Key  string
-	Val  uint64
+	ivt  *invert
 	Iter *vellum.FSTIterator
 }
 
