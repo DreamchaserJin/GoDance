@@ -227,6 +227,7 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 		f.maxDocId += docSize
 	}
 	if f.ivt != nil {
+		// TODO 考虑删除，为字段倒排新建数据表
 		f.btree = btree
 		if err := f.btree.AddTree(f.fieldName); err != nil {
 			f.Logger.Error("[ERROR] Invert %v Create Btree Error : %v", f.fieldName, err)
@@ -240,11 +241,12 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 				f.Logger.Error("[INFO] Invert %v is nil")
 			}
 		}
-		if err := f.ivt.mergeInvert(ivts, segmentName, btree); err != nil {
+		if err := f.ivt.mergeInvert(ivts, segmentName); err != nil {
 			return err
 		}
 	}
 
+	// TODO 下面这段代码是否需要? index中合并完后会将段重新从文件中加载出来的
 	var err error
 	f.idxMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_invert.idx", segmentName, f.fieldName), utils.MODE_APPEND)
 	if err != nil {

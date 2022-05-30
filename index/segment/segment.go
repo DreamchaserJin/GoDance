@@ -200,7 +200,6 @@ func (seg *Segment) MergeSegments(sgs []*Segment) error {
 	seg.Logger.Info("[INFO] MergeSegments [%v] Start", seg.SegmentName)
 
 	btdbName := fmt.Sprintf("%v%v", seg.SegmentName, "seg.db")
-
 	if seg.btdb == nil {
 		seg.btdb = tree.NewBTDB(btdbName, seg.Logger)
 	}

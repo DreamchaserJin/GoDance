@@ -1,5 +1,5 @@
 /**
- * @Author hz
+ * @Author iceberg
  * @Date 6:20 AM$ 5/21/22$
  * @Note
  **/
@@ -78,7 +78,10 @@ func newInvertFromLocalFile(btdb *tree.BTreeDB, fieldType uint32, fieldName, seg
 	return ivt
 }
 
+// 添加文档
 func (ivt *invert) addDocument(docId uint32, contentStr string) error {
+	docIdNode := utils.DocIdNode{Docid: docId, Weight: 0}
+	ivt.memoryHashMap[contentStr] = append(ivt.memoryHashMap[contentStr], docIdNode)
 	return nil
 }
 
@@ -273,7 +276,7 @@ func (ivt *invert) setIdxMmap(mmap *utils.Mmap) {
 //	return nil
 //}
 
-func (ivt *invert) mergeInvert(inverts []*invert, segmentName string, delBitMap *utils.Bitmap) error {
+func (ivt *invert) mergeInvert(inverts []*invert, segmentName string) error {
 	// TODO 测试
 	// 用于存放所有fst的迭代器
 	mergeFSTNodes := make([]*FstNode, len(inverts))
@@ -310,6 +313,10 @@ func (ivt *invert) mergeInvert(inverts []*invert, segmentName string, delBitMap 
 	if err != nil {
 		return err
 	}
+
+	ivt.memoryHashMap = nil
+	ivt.isMemory = false
+
 	return nil
 }
 
@@ -350,7 +357,8 @@ func (ivt *invert) mergeFSTIteratorList(segmentName string, mergeFSTNodes []*Fst
 	}
 	// 保证builder正常关闭, 否则无法写入文件
 	defer builder.Close()
-	// 先使用小顶堆
+
+	// 使用小顶堆
 	var fstHeap FstHeap
 	heap.Init(&fstHeap)
 	for _, node := range mergeFSTNodes {
@@ -392,6 +400,7 @@ func (ivt *invert) mergeFSTIteratorList(segmentName string, mergeFSTNodes []*Fst
 				})
 			}
 		}
+
 		// TODO 通过BitMap将value中已经删除的id剔除
 		// 将新的倒排链写入文件
 		lens := len(value)
