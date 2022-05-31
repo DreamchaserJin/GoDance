@@ -14,15 +14,12 @@ import (
 // IDX_ROOT_PATH 默认索引存放位置
 const IDX_ROOT_PATH string = "./data/"
 
-const IDX_DETAIL_PATH string = "./detail/"
-
 // FALCONENGINENAME base名称
-const FALCONSEARCHERNAME string = "FALCONENGINE"
+const GODANCEENGINE string = "GoDanceEngine"
 
 type DocIdNode struct {
 	Docid  uint32
 	Weight uint32
-	//Pos    uint32
 }
 
 type DocIdSort []DocIdNode
@@ -49,13 +46,6 @@ func (a DocWeightSort) Less(i, j int) bool {
 
 const DOCNODE_SIZE int = 8 //12
 
-const BASE_PREFIX_SEGMENT uint64 = 1000
-
-const SIZE_OF_TRIE_NODE int = 10
-
-const UPDATE_TYPE_ADD uint64 = 1
-const UPDATE_TYPE_MODIFY uint64 = 2
-
 // 索引类型说明
 const (
 	IDX_TYPE_STRING        = 1 //字符型索引[全词匹配]
@@ -64,10 +54,11 @@ const (
 	IDX_TYPE_STRING_SINGLE = 4 //字符型索引[单字切词]
 
 	IDX_TYPE_NUMBER = 11 // 数字型索引，只支持整数，数字型索引只建立正排
+	IDX_TYPE_FLOAT  = 12 // 数字型索引，支持浮点数，只能保留两位小数，数字型索引只建立正排
 
 	IDX_TYPE_DATE = 15 // 日期型索引 '2015-11-11 00:11:12'，日期型只建立正排，转成时间戳存储
 
-	IDX_TYPE_PK = 21 //主键类型，倒排正排都需要，倒排使用B树存储
+	IDX_TYPE_PK = 21 //主键类型，倒排正排都需要，倒排使用B+树存储
 	GATHER_TYPE = 22 //汇总类型，倒排正排都需要[后续使用]
 
 	IDX_ONLYSTORE = 30 //只保存详情，不参与检索
@@ -329,6 +320,64 @@ func Merge(a []DocIdNode, b []DocIdNode) ([]DocIdNode, bool) {
 
 }
 
+func MergeIds(a []uint32, b []uint32) []uint32 {
+	lena := len(a)
+	lenb := len(b)
+	if lena == 0 && lenb == 0 {
+		return make([]uint32, 0)
+	}
+	lenc := 0
+	c := make([]uint32, lena+lenb)
+	ia := 0
+	ib := 0
+	//fmt.Printf("Lena : %v ======== Lenb : %v \n",lena,lenb)
+	if lena == 0 && lenb == 0 {
+		return nil
+	}
+
+	for ia < lena && ib < lenb {
+
+		if a[ia] == b[ib] {
+			//c = append(c, a[ia])
+			c[lenc] = a[ia]
+			lenc++
+			ia++
+			ib++
+			continue
+		}
+
+		if a[ia] < b[ib] {
+			//	fmt.Printf("ia : %v ======== ib : %v \n",ia,ib)
+			//c = append(c, a[ia])
+			c[lenc] = a[ia]
+			lenc++
+			ia++
+		} else {
+			//c = append(c, b[ib])
+			c[lenc] = b[ib]
+			lenc++
+			ib++
+		}
+	}
+
+	if ia < lena {
+		for ; ia < lena; ia++ {
+			//c = append(c, a[ia])
+			c[lenc] = a[ia]
+			lenc++
+		}
+
+	} else {
+		for ; ib < lenb; ib++ {
+			//c = append(c, b[ib])
+			c[lenc] = b[ib]
+			lenc++
+		}
+	}
+
+	return c[:lenc]
+}
+
 func ComputeWeight(res []DocIdNode, df int, maxdoc uint32) []DocIdNode {
 	idf := math.Log10(float64(maxdoc) / float64(df))
 	for ia := 0; ia < len(res); ia++ {
@@ -472,6 +521,48 @@ func Interaction(a []DocIdNode, b []DocIdNode) ([]DocIdNode, bool) {
 
 }
 
+func InteractionIds(a []uint32, b []uint32) ([]uint32, bool) {
+
+	if a == nil || b == nil {
+		return nil, false
+	}
+
+	lena := len(a)
+	lenb := len(b)
+	var c []uint32
+	lenc := 0
+	if lena <= lenb {
+		c = make([]uint32, lena)
+	} else {
+		c = make([]uint32, lenb)
+	}
+
+	ia := 0
+	ib := 0
+	for ia < lena && ib < lenb {
+		if a[ia] == b[ib] {
+			c[lenc] = a[ia]
+			lenc++
+			ia++
+			ib++
+			continue
+		}
+
+		if a[ia] < b[ib] {
+			ia++
+		} else {
+			ib++
+		}
+	}
+
+	if len(c) == 0 {
+		return nil, false
+	} else {
+		return c[:lenc], true
+	}
+
+}
+
 func BinSearch(docids []DocIdNode, item DocIdNode) int {
 
 	low := 0
@@ -587,12 +678,12 @@ func IsDateTime(datetime string) (int64, error) {
 	if len(datetime) > 10 {
 		timestamp, err = time.ParseInLocation("2006-01-02 15:04:05", datetime, time.Local)
 		if err != nil {
-			return 0, err
+			return -1, err
 		}
 	} else {
 		timestamp, err = time.ParseInLocation("2006-01-02", datetime, time.Local)
 		if err != nil {
-			return 0, err
+			return -1, err
 		}
 	}
 
