@@ -4,9 +4,6 @@ import (
 	"math"
 )
 
-// title比content的权重倍数
-const TITLEBOOST = 2
-
 // 关键词与TF-IDF
 type WordTfIdf struct {
 	Word  string
@@ -16,9 +13,8 @@ type WordTfIdf struct {
 type WordTfIdfs []WordTfIdf
 
 /*************************************************************************
-*  TF-IDF : 计算单词 t 与 文档 d 之间的关联度
 *  WordWeight： 计算单词的权重
-*  TitleAndContentWeight： 计算标题与内容的权重和
+*  TitleAndContentWeight： 一篇文章两种类型的权重和，比如标题，摘要，内容
 ************************************************************************/
 
 func WordWeight(keyWords []string, listWords [][]string) WordTfIdfs {
@@ -68,12 +64,15 @@ func WordWeight(keyWords []string, listWords [][]string) WordTfIdfs {
 	}
 	return wordidfS
 }
-func TitleAndContentWeight(titleWeight WordTfIdfs, contentWeight WordTfIdfs) WordTfIdfs {
+
+// BOOST: 第一种类型是第二种类型的权重倍数
+func TwoWeightSum(WeightType1 WordTfIdfs, WeightType2 WordTfIdfs, BOOST float64) WordTfIdfs {
 	var sumWeight WordTfIdfs
-	for i := range contentWeight {
+	// 都是以关键词的顺序进行遍历
+	for i := range WeightType2 {
 		var wti WordTfIdf
-		wti.Word = titleWeight[i].Word
-		wti.Value = titleWeight[i].Value*TITLEBOOST + contentWeight[i].Value
+		wti.Word = WeightType1[i].Word
+		wti.Value = WeightType1[i].Value*BOOST + WeightType2[i].Value
 		sumWeight = append(sumWeight, wti)
 	}
 	return sumWeight
