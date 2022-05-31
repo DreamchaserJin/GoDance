@@ -1,7 +1,7 @@
 /**
  * @Author hz
  * @Date 6:08 AM$ 5/21/22$
- * @Note
+ * @Note 字段类型以及相关的方法
  **/
 
 package segment
@@ -171,10 +171,6 @@ func (f *Field) addDocument(docId uint32, contentStr string) error {
 	return nil
 }
 
-func (f *Field) updateDocument() {
-
-}
-
 func (f *Field) serialization(segmentName string, btdb *tree.BTreeDB) error {
 
 	if f.pfl != nil {
@@ -275,6 +271,7 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 
 		f.maxDocId += docSize
 	}
+
 	if f.pfi != nil {
 		f.btree = btree
 		if err := f.btree.AddBTree(f.fieldName); err != nil {
@@ -289,7 +286,7 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 				f.Logger.Error("[INFO] Invert %v is nil")
 			}
 		}
-		if err := f.pfi.mergeInvert(pfis, segmentName, btree); err != nil {
+		if err := f.pfi.mergeProfileIndex(pfis, segmentName, btree); err != nil {
 			return err
 		}
 	}
@@ -313,8 +310,6 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 			return err
 		}
 	}
-
-
 
 	// TODO 下面这段代码是否需要? index中合并完后会将段重新从文件中加载出来的
 	var err error

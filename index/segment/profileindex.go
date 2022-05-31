@@ -156,7 +156,7 @@ func (pfi *profileindex) setBtree(btdb *tree.BTreeDB) {
 	pfi.btree = btdb
 }
 
-func (pfi *profileindex) mergeInvert(inverts []*profileindex, segmentName string, btdb *tree.BTreeDB) error {
+func (pfi *profileindex) mergeProfileIndex(inverts []*profileindex, segmentName string, btdb *tree.BTreeDB) error {
 	idxFileName := fmt.Sprintf("%v%v_profileindex.pfi", segmentName, pfi.fieldName)
 	idxFd, err := os.OpenFile(idxFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
