@@ -33,23 +33,47 @@ func tryElection() {
 		}
 		i += 1
 	}
-	//todo 选举 要考虑超时的情况,这里标准库没有超时功能，所以需要
+	//todo 选举
 	for {
 		State.selfState.term += 1
-		r := voteArgs{
+		args := voteArgs{
 			term:    State.selfState.term,
 			version: State.clusterState.version,
 			id:      State.selfState.nodeId,
 		}
-		//the sum of vote cast
-		var sum uint32 = 0
-		var wg sync.WaitGroup
-		wg.Add(len(candidateNodes))
-		//一阶段选举投票
-		beginVote(&r, &sum, &wg)
-		wg.Wait()
+		//the vote of vote vote
+		var vote uint32 = 0
+		//Completed requests
+		var cnum uint32 = 0
+		var mutex sync.Mutex
+
+		//选举投票
+		for _, c := range clients {
+			reply := &voteReply{}
+			call := c.Go(context.Background(), "RaftServe", "RequestVote", args, reply, nil)
+
+			//异步处理返回值
+			go func() {
+				defer c.Close()
+				if call.Error != nil {
+					log.Fatal("arith error:", call.Error)
+				}
+				//add the vote by CAS
+				if reply.success {
+					atomic.AddUint32(&vote, 1)
+				}
+				//add the number of complete request ,notice the order of CAS here，cnum must behind of vote
+				atomic.AddUint32(&cnum, 1)
+				//When the votes are greater than the majority, or when the immediate failure is too many to reach the majority
+				if vote >= configs.Config.Cluster.ElectionMin || cnum-vote > uint32(len(clients))-configs.Config.Cluster.ElectionMin {
+					mutex.Unlock()
+				}
+			}()
+		}
+		//goroutine will block until condition is reached
+		mutex.Lock()
 		//如果大于配置的“大多数”，且身份依旧是候选者（即在这期间没有收到过其他任期更高的心跳）
-		if sum >= configs.Config.Cluster.ElectionMin && State.selfState.state == Candidate {
+		if vote >= configs.Config.Cluster.ElectionMin && State.selfState.state == Candidate {
 			//晋升自己为领导者
 			State.selfState.state = Leader
 			//开始向其他节点发送心跳
@@ -61,25 +85,6 @@ func tryElection() {
 		time.Sleep(time.Duration(randomElection))
 	}
 
-}
-func beginVote(args *voteArgs, sum *uint32, wg *sync.WaitGroup) {
-	for _, c := range clients {
-		reply := &voteReply{}
-		call := c.Go(context.Background(), "RaftServe", "RequestVote", args, reply, nil)
-
-		//异步处理返回值
-		go func() {
-			defer c.Close()
-			if call.Error != nil {
-				log.Fatal("arith error:", call.Error)
-			}
-			//累加票数
-			if reply.success {
-				atomic.AddUint32(sum, 1)
-			}
-			wg.Done()
-		}()
-	}
 }
 
 //开始定时向其他节点发送心跳
