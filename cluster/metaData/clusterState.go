@@ -3,6 +3,7 @@ package metaData
 import (
 	"cluster/node"
 	"cluster/routing"
+	"sync"
 )
 
 //ClusterState
@@ -24,4 +25,19 @@ type ClusterState struct {
 	Nodes node.DiscoveryNodes
 	//集群名称
 	ClusterName string
+	//Ensure write consistency
+	mutex sync.Mutex
+}
+
+func (c *ClusterState) AddNode(np *node.DiscoveryNode) {
+	c.mutex.Lock()
+	c.Nodes.AddNode(np)
+	c.Version += 1
+	c.mutex.Unlock()
+}
+func (c *ClusterState) DeleteNode(id int64) {
+	c.mutex.Lock()
+	c.Nodes.DeleteNode(id)
+	c.Version += 1
+	c.mutex.Unlock()
 }

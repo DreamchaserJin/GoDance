@@ -23,3 +23,9 @@ type EntryResponse struct {
 	//接受到探活请求的任期
 	term int64
 }
+
+type CommonResponse struct {
+	success bool
+	//leader Id that current node think
+	leaderId int64
+}

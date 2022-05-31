@@ -3,15 +3,15 @@ package node
 // DiscoveryNodes 保存所有节点信息
 type DiscoveryNodes struct {
 	//所有节点
-	Nodes map[string]*DiscoveryNode
+	Nodes map[int64]*DiscoveryNode
 	//数据节点
-	DataNodes map[string]*DiscoveryNode
+	DataNodes map[int64]*DiscoveryNode
 	//候选主节点
-	CandidateNodes map[string]*DiscoveryNode
+	CandidateNodes map[int64]*DiscoveryNode
 }
 
 // DeleteNode 删除一个节点
-func (ns *DiscoveryNodes) DeleteNode(id string) {
+func (ns *DiscoveryNodes) DeleteNode(id int64) {
 	delete(ns.Nodes, id)
 	delete(ns.DataNodes, id)
 	delete(ns.CandidateNodes, id)

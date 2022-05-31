@@ -108,7 +108,7 @@ func heatBeat() {
 					version: cluster.State.ClusterState.Version,
 					id:      cluster.State.SelfState.NodeId,
 				}
-				//rpc调用,但不用返回结果
+				// rpc调用
 				client.Go("Server.HeatBeat", &r, &res, nil)
 				time.Sleep(time.Duration(min / 2))
 			}

@@ -217,6 +217,7 @@ func (f *Field) serialization(segmentName string, btdb *tree.BTreeDB) error {
 		f.Logger.Error("[ERROR] Mmap error : %v", err)
 	}
 	f.idxMmap.SetFileEnd(0)
+	f.Logger.Debug("[INFO] Load Invert File : %v%v_invert.idx", segmentName, f.fieldName)
 
 	f.pflMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_profile.pfl", segmentName, f.fieldName), utils.MODE_APPEND)
 	if err != nil {
@@ -274,7 +275,6 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 
 		f.maxDocId += docSize
 	}
-
 	if f.pfi != nil {
 		f.btree = btree
 		if err := f.btree.AddBTree(f.fieldName); err != nil {
@@ -295,24 +295,28 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 	}
 
 	if f.ivt != nil {
-		//f.btree = btree
-		//if err := f.btree.AddBTree(f.fieldName); err != nil {
-		//	f.Logger.Error("[ERROR] Invert %v Create Btree Error : %v", f.fieldName, err)
-		//	return err
-		//}
-		//ivts := make([]*invert, 0)
-		//for _, fd := range fields {
-		//	if fd.ivt != nil {
-		//		ivts = append(ivts, fd.ivt)
-		//	} else {
-		//		f.Logger.Error("[INFO] Invert %v is nil")
-		//	}
-		//}
-		//if err := f.ivt.mergeInvert(ivts, segmentName, btree); err != nil {
-		//	return err
-		//}
+		// TODO 考虑删除，为字段倒排新建数据表
+		f.btree = btree
+		if err := f.btree.AddBTree(f.fieldName); err != nil {
+			f.Logger.Error("[ERROR] Invert %v Create Btree Error : %v", f.fieldName, err)
+			return err
+		}
+		ivts := make([]*invert, 0)
+		for _, fd := range fields {
+			if fd.ivt != nil {
+				ivts = append(ivts, fd.ivt)
+			} else {
+				f.Logger.Error("[INFO] Invert %v is nil")
+			}
+		}
+		if err := f.ivt.mergeInvert(ivts, segmentName); err != nil {
+			return err
+		}
 	}
 
+
+
+	// TODO 下面这段代码是否需要? index中合并完后会将段重新从文件中加载出来的
 	var err error
 	f.idxMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_invert.idx", segmentName, f.fieldName), utils.MODE_APPEND)
 	if err != nil {
