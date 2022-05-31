@@ -24,18 +24,9 @@ func DocMergeAndFilter(keyMap map[string][]int, filterMap map[string][]int) []in
 	h := &Heap{}
 	heap.Init(h)
 
-	// NOT操作
-	for k, v := range keyMap {
-		for i, docId := range v {
-			if newMap[docId] == true {
-				// 删除过滤的文档
-				keyMap[k] = append(keyMap[k][:i], keyMap[k][i+1:]...)
-			}
-		}
-		// 删除过滤文档后加入小顶堆
-		if len(keyMap[k]) != 0 {
-			heap.Push(h, keyMap[k])
-		}
+	// 所有关键词文档加入小顶堆
+	for _, v := range keyMap {
+		heap.Push(h, v)
 	}
 
 	// Merge
@@ -45,7 +36,19 @@ func DocMergeAndFilter(keyMap map[string][]int, filterMap map[string][]int) []in
 		top1 = merge(top1, top2)
 		heap.Push(h, top1)
 	}
-	return heap.Pop(h).([]int)
+	keyMergeDoc := heap.Pop(h).([]int)
+
+	// NOT操作
+	for i := 0; i < len(keyMergeDoc); {
+		if newMap[keyMergeDoc[i]] == true {
+			// 删除过滤的文档
+			keyMergeDoc = append(keyMergeDoc[:i], keyMergeDoc[i+1:]...)
+		} else {
+			i++
+		}
+	}
+
+	return keyMergeDoc
 }
 
 func merge(nums1 []int, nums2 []int) []int {

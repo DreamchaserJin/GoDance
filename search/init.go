@@ -43,5 +43,6 @@ func KeyReverseIndex() map[string][]int {
 func FilterReverseIndex() map[string][]int {
 	slice := make(map[string][]int)
 	slice["take"] = []int{1}
+	slice["mr"] = []int{3, 4}
 	return slice
 }
