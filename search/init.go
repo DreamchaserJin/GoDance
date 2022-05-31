@@ -29,7 +29,7 @@ func Content() [][]string {
 	return slice
 }
 
-// title与conten倒排得出的文档ID去重集合
+// title与conten与summary字段倒排得出的文档ID去重集合
 func KeyReverseIndex() map[string][]int {
 	slice := make(map[string][]int)
 	slice["my"] = []int{0, 2, 4}
