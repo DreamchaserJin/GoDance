@@ -1,7 +1,7 @@
 /*****************************************************************************
  *  file name : Segmenter.go
- *  author : Wu Yinghao
- *  email  : wyh817@gmail.com
+ *  author : iceberg
+ *  email  : iceberg_iceberg@163.com
  *
  *  file description : 分词器接口，目前封装了sego分词器
  *  github.com/huichen/sego
@@ -27,9 +27,7 @@ var GSegmenter *Segmenter
 *  function name : NewSegmenter
 *  params :
 *  return :
-*
 *  description :
-*
 ******************************************************************************/
 func NewSegmenter(dic_name string) *Segmenter {
 	var seg sego.Segmenter

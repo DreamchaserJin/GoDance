@@ -84,15 +84,3 @@ func normalStr(str string) string {
 	//fmt.Printf("%v  === %v == %v\n", str, findRet, sympolMap[findRet])
 	return strings.Replace(str, findRet, string([]byte(sympolMap[findRet])[0]), -1)
 }
-
-//func initPhrases() {
-//	f, err := os.Open(DICT_PHRASES)
-//	defer f.Close()
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//	decoder := json.NewDecoder(f)
-//	if err := decoder.Decode(&phrasesDict); err != nil {
-//		log.Fatal(err)
-//	}
-//}
