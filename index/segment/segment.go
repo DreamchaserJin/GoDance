@@ -1,13 +1,14 @@
 /**
  * @Author hz
  * @Date 6:11 AM$ 5/21/22$
- * @Note
+ * @Note 段相关的类型和方法
  **/
 
 package segment
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"gdindex/tree"
 	"os"
@@ -83,7 +84,6 @@ func NewSegmentFromLocalFile(segmentName string, logger *utils.Log4FE) *Segment 
 
 	btdbName := fmt.Sprintf("%v%v", segmentName, "seg.bt")
 	if utils.Exist(btdbName) {
-		seg.Logger.Debug("[INFO] Load B+ Tree File %v", btdbName)
 		seg.btdb = tree.NewBTDB(btdbName, logger)
 	}
 
@@ -99,17 +99,84 @@ func NewSegmentFromLocalFile(segmentName string, logger *utils.Log4FE) *Segment 
 // @Description 添加字段
 // @Param newField  字段信息
 // @Return 任何错误
-//func (seg *Segment) AddField(newField SimpleFieldInfo) error {
-//
-//}
+func (seg *Segment) AddField(newField SimpleFieldInfo) error {
+	if _, ok := seg.FieldInfos[newField.FieldName]; ok {
+		seg.Logger.Warn("[WARN] Segment has field [%v]", newField.FieldName)
+		return errors.New("segment has field")
+	}
+	if seg.isMemory && !seg.IsEmpty() {
+		seg.Logger.Warn("[WARN] Segment has field [%v]", newField.FieldName)
+		return errors.New("segment can't add field")
+	}
+
+	f := newEmptyField(newField.FieldName, seg.StartDocId, newField.FieldType, seg.Logger)
+	seg.FieldInfos[newField.FieldName] = newField.FieldType
+	seg.fields[newField.FieldName] = f
+
+	return nil
+}
+
+// DeleteField
+// @Description 删除字段
+// @Param fieldName 字段名
+// @Return error 任何error
+func (seg *Segment) DeleteField(fieldName string) error {
+	if _, ok := seg.FieldInfos[fieldName]; ok {
+		seg.Logger.Warn("[WARN] Segment has field [%v]", fieldName)
+		return errors.New("segment has field")
+	}
+	if seg.isMemory && !seg.IsEmpty() {
+		seg.Logger.Warn("[WARN] Segment has field [%v]", fieldName)
+		return errors.New("segment can't add field")
+	}
+
+	seg.fields[fieldName].destroy()
+	delete(seg.FieldInfos, fieldName)
+	delete(seg.fields, fieldName)
+
+	seg.Logger.Info("[INFO] Segment DeleteField %v", fieldName)
+
+	return nil
+}
 
 // AddDocument
-// @Description 新增文档
-// @Param docId  文档Id
-// @Return 任何error
-//func (seg *Segment) AddDocument(docId uint32, content map[string]string) error {
-//
-//}
+// @Description    为段里的 Field 新增文档
+// @Param docId    文档ID
+// @Param content  map[字段名]内容
+// @Return error   任何错误
+func (seg *Segment) AddDocument(docId uint32, content map[string]string) error {
+	if docId != seg.MaxDocId {
+		seg.Logger.Error("[ERROR] Segment AddDocument Wrong DocId[%v]  MaxDocId[%v]", docId, seg.MaxDocId)
+		return errors.New("segment Maximum ID Mismatch")
+	}
+
+	// 为段里的字段添加
+	for name, _ := range seg.fields {
+		// 如果content里面没有字段，则添加一个空值
+		if _, ok := content[name]; !ok {
+			if err := seg.fields[name].addDocument(docId, ""); err != nil {
+				seg.Logger.Error("[ERROR] Segment AddDocument [%v] :: %v", seg.SegmentName, err)
+			}
+			continue
+		}
+
+		if err := seg.fields[name].addDocument(docId, content[name]); err != nil {
+			seg.Logger.Error("[ERROR] Segment AddDocument :: field[%v] value[%v] error[%v]", name, content[name], err)
+		}
+	}
+
+	seg.MaxDocId++
+	return nil
+}
+
+// GetDocument
+// @Description 根据 docId 获取文档内容（未完成）
+// @Param docId 文档ID
+// @Return map[string]string 返回的内容
+// @Return bool 是否找到文档
+func (seg *Segment) GetDocument(docId uint32) (map[string]string, bool) {
+	return nil, false
+}
 
 // Serialization
 // @Description 序列化段
@@ -135,11 +202,6 @@ func (seg *Segment) Serialization() error {
 	}
 
 	seg.isMemory = false
-
-	for name := range seg.fields {
-		seg.fields[name].setMmap()
-	}
-
 	seg.Logger.Info("[INFO] Serialization Segment %v Finish", seg.SegmentName)
 
 	return nil
@@ -176,7 +238,7 @@ func (seg *Segment) Destroy() error {
 	}
 
 	dirName := fmt.Sprintf("%v", seg.SegmentName)
-	fmt.Println(dirName)
+	// fmt.Println(dirName)
 
 	err := os.RemoveAll(dirName)
 	if err != nil {
@@ -196,11 +258,10 @@ func (seg *Segment) IsEmpty() bool {
 // @Description 合并段
 // @Param sgs  需要合并的段
 // @Return 任何error
-func (seg *Segment) MergeSegments(sgs []*Segment) error {
+func (seg *Segment) MergeSegments(sgs []*Segment, delDocSet map[uint32]struct{}) error {
 	seg.Logger.Info("[INFO] MergeSegments [%v] Start", seg.SegmentName)
 
 	btdbName := fmt.Sprintf("%v%v", seg.SegmentName, "seg.db")
-
 	if seg.btdb == nil {
 		seg.btdb = tree.NewBTDB(btdbName, seg.Logger)
 	}
@@ -215,7 +276,7 @@ func (seg *Segment) MergeSegments(sgs []*Segment) error {
 			}
 			allFields = append(allFields, sg.fields[name])
 		}
-		seg.fields[name].mergeField(allFields, seg.SegmentName, seg.btdb)
+		seg.fields[name].mergeField(allFields, seg.SegmentName, seg.btdb, delDocSet)
 	}
 
 	seg.isMemory = false

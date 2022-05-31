@@ -1,7 +1,7 @@
 /**
  * @Author hz
  * @Date 6:08 AM$ 5/21/22$
- * @Note
+ * @Note 字段类型以及相关的方法
  **/
 
 package segment
@@ -26,10 +26,13 @@ type Field struct {
 	isMemory   bool
 	ivt        *invert
 	pfl        *profile
+	pfi        *profileindex
+	pfiMmap    *utils.Mmap
 	idxMmap    *utils.Mmap
 	pflMmap    *utils.Mmap
 	dtlMmap    *utils.Mmap
-	btree      *tree.BTreeDB
+
+	btree *tree.BTreeDB
 
 	Logger *utils.Log4FE `json:"-"`
 }
@@ -41,11 +44,11 @@ func newEmptyFakeField(fieldName string, start, cur, fieldType uint32, logger *u
 		maxDocId:   cur,
 		fieldType:  fieldType,
 		Logger:     logger,
+		isMemory:   false,
 	}
+
 	f.pfl = newEmptyFakeProfile(fieldName, fieldType, start, cur, logger)
-
 	return f
-
 }
 
 func newEmptyField(fieldName string, start, fieldType uint32, logger *utils.Log4FE) *Field {
@@ -53,8 +56,6 @@ func newEmptyField(fieldName string, start, fieldType uint32, logger *utils.Log4
 		fieldName:  fieldName,
 		startDocId: start,
 		maxDocId:   start,
-		pfl:        nil,
-		ivt:        nil,
 		fieldType:  fieldType,
 		isMemory:   true,
 		Logger:     logger,
@@ -67,7 +68,14 @@ func newEmptyField(fieldName string, start, fieldType uint32, logger *utils.Log4
 		fieldType == utils.GATHER_TYPE {
 		f.ivt = newEmptyInvert(fieldType, start, fieldName, logger)
 	}
+	if fieldType == utils.IDX_TYPE_NUMBER ||
+		fieldType == utils.IDX_TYPE_DATE ||
+		fieldType == utils.IDX_TYPE_FLOAT {
+		f.pfi = newEmptyProfileIndex(fieldType, start, fieldName, logger)
+	}
+
 	f.pfl = newEmptyProfile(fieldName, fieldType, start, logger)
+
 	return f
 }
 
@@ -89,21 +97,24 @@ func newFieldFromLocalFile(fieldName, segmentName string, start, max uint32,
 		f.Logger.Error("[ERROR] Mmap error : %v", err)
 	}
 	f.idxMmap.SetFileEnd(0)
-	f.Logger.Debug("[INFO] Load Invert File : %v%v_invert.idx", segmentName, f.fieldName)
 
 	f.pflMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_profile.pfl", segmentName, f.fieldName), utils.MODE_APPEND)
 	if err != nil {
 		f.Logger.Error("[ERROR] Mmap error : %v", err)
 	}
 	f.pflMmap.SetFileEnd(0)
-	f.Logger.Debug("[INFO] Load Invert File : %v%v_profile.pfl", segmentName, f.fieldName)
 
 	f.dtlMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_detail.dtl", segmentName, f.fieldName), utils.MODE_APPEND)
 	if err != nil {
 		f.Logger.Error("[ERROR] Mmap error : %v", err)
 	}
 	f.dtlMmap.SetFileEnd(0)
-	f.Logger.Debug("[INFO] Load Invert File : %v%v_detail.dtl", segmentName, f.fieldName)
+
+	f.pfiMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_profileindex.pfi", segmentName, f.fieldName), utils.MODE_APPEND)
+	if err != nil {
+		f.Logger.Error("[ERROR] Mmap error : %v", err)
+	}
+	f.pfiMmap.SetFileEnd(0)
 
 	f.Logger.Info("[INFO] Field %v Serialization Finish", f.fieldName)
 	if fieldType == utils.IDX_TYPE_STRING ||
@@ -114,6 +125,12 @@ func newFieldFromLocalFile(fieldName, segmentName string, start, max uint32,
 		f.ivt = newInvertFromLocalFile(btree, fieldType, fieldName, segmentName, f.idxMmap, logger)
 	}
 
+	if fieldType == utils.IDX_TYPE_NUMBER ||
+		fieldType == utils.IDX_TYPE_DATE ||
+		fieldType == utils.IDX_TYPE_FLOAT {
+		f.pfi = newProfileIndexFromLocalFile(btree, fieldType, fieldName, segmentName, f.pfiMmap, logger)
+	}
+
 	f.pfl = newProfileFromLocalFile(fieldName, fieldType, f.startDocId, f.maxDocId, f.pflMmap, f.dtlMmap, logger)
 
 	return f
@@ -121,30 +138,37 @@ func newFieldFromLocalFile(fieldName, segmentName string, start, max uint32,
 
 func (f *Field) addDocument(docId uint32, contentStr string) error {
 	if docId != f.maxDocId || f.isMemory == false || f.pfl == nil {
-		f.Logger.Error("[ERROR] FSField --> AddDocument :: Wrong docid %v this.maxDocId %v this.profile %v", docId, f.maxDocId, f.pfl)
+		f.Logger.Error("[ERROR] Field  AddDocument :: Wrong docid %v this.maxDocId %v this.profile %v", docId, f.maxDocId, f.pfl)
 		return errors.New("[ERROR] Wrong docid")
 	}
 
 	if err := f.pfl.addDocument(docId, contentStr); err != nil {
-		f.Logger.Error("[ERROR] FSField --> AddDocument :: Add Document Error %v", err)
+		f.Logger.Error("[ERROR] Field AddDocument :: Add Document Error %v", err)
 		return err
 	}
 
 	if f.fieldType != utils.IDX_TYPE_NUMBER &&
 		f.fieldType != utils.IDX_TYPE_DATE &&
+		f.fieldType != utils.IDX_TYPE_FLOAT &&
 		f.ivt != nil {
 		if err := f.ivt.addDocument(docId, contentStr); err != nil {
-			f.Logger.Error("[ERROR] FSField --> AddDocument :: Add Invert Document Error %v", err)
-			// return err
+			f.Logger.Error("[ERROR] Field AddDocument :: Add Invert Document Error %v", err)
+			return err
+		}
+	}
+
+	if (f.fieldType == utils.IDX_TYPE_NUMBER ||
+		f.fieldType == utils.IDX_TYPE_DATE ||
+		f.fieldType == utils.IDX_TYPE_FLOAT) &&
+		f.pfi != nil {
+		if err := f.pfi.addDocument(docId, contentStr); err != nil {
+			f.Logger.Error("[ERROR] Field --> AddDocument :: Add ProfileIndex Document Error %v", err)
+			return err
 		}
 	}
 
 	f.maxDocId++
 	return nil
-}
-
-func (f *Field) updateDocument() {
-
 }
 
 func (f *Field) serialization(segmentName string, btdb *tree.BTreeDB) error {
@@ -157,17 +181,30 @@ func (f *Field) serialization(segmentName string, btdb *tree.BTreeDB) error {
 		}
 	}
 
-	if f.ivt != nil {
+	if f.pfi != nil {
 		f.btree = btdb
-		if err := f.btree.AddTree(f.fieldName); err != nil {
+		if err := f.btree.AddBTree(f.fieldName); err != nil {
 			f.Logger.Error("[ERROR] Field Serialization, Create BPTree ERROR : %v", err)
 			return err
 		}
-		err := f.ivt.serialization(segmentName, f.btree)
+		err := f.pfi.serialization(segmentName, f.btree)
 		if err != nil {
 			f.Logger.Error("[ERROR] Field Serialization Error : %v", err)
 			return err
 		}
+	}
+
+	if f.ivt != nil {
+		//f.btree = btdb
+		//if err := f.btree.AddBTree(f.fieldName); err != nil {
+		//	f.Logger.Error("[ERROR] Field Serialization, Create BPTree ERROR : %v", err)
+		//	return err
+		//}
+		//err := f.ivt.serialization(segmentName, f.btree)
+		//if err != nil {
+		//	f.Logger.Error("[ERROR] Field Serialization Error : %v", err)
+		//	return err
+		//}
 	}
 
 	var err error
@@ -183,14 +220,18 @@ func (f *Field) serialization(segmentName string, btdb *tree.BTreeDB) error {
 		f.Logger.Error("[ERROR] Mmap error : %v", err)
 	}
 	f.pflMmap.SetFileEnd(0)
-	f.Logger.Debug("[INFO] Load Invert File : %v%v_profile.pfl", segmentName, f.fieldName)
+
+	f.pfiMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_profileindex.pfi", segmentName, f.fieldName), utils.MODE_APPEND)
+	if err != nil {
+		f.Logger.Error("[ERROR] Mmap error : %v", err)
+	}
+	f.pfiMmap.SetFileEnd(0)
 
 	f.dtlMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_detail.dtl", segmentName, f.fieldName), utils.MODE_APPEND)
 	if err != nil {
 		f.Logger.Error("[ERROR] Mmap error : %v", err)
 	}
 	f.dtlMmap.SetFileEnd(0)
-	f.Logger.Debug("[INFO] Load Invert File : %v%v_detail.dtl", segmentName, f.fieldName)
 
 	f.setMmap()
 
@@ -204,12 +245,16 @@ func (f *Field) destroy() {
 		f.pfl.destroy()
 	}
 
+	if f.pfi != nil {
+		f.pfi.destroy()
+	}
+
 	if f.ivt != nil {
 		f.ivt.destroy()
 	}
 }
 
-func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTreeDB) error {
+func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTreeDB, delDocSet map[uint32]struct{}) error {
 
 	if f.pfl != nil {
 		pfls := make([]*profile, 0)
@@ -218,7 +263,7 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 			pfls = append(pfls, fd.pfl)
 		}
 
-		docSize, err := f.pfl.mergeProfiles(pfls, segmentName)
+		docSize, err := f.pfl.mergeProfiles(pfls, segmentName, delDocSet)
 		if err != nil {
 			f.Logger.Error("[Error] Field %v merge Error : %v", f.fieldName, err)
 			return err
@@ -226,9 +271,30 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 
 		f.maxDocId += docSize
 	}
-	if f.ivt != nil {
+
+	if f.pfi != nil {
 		f.btree = btree
-		if err := f.btree.AddTree(f.fieldName); err != nil {
+		if err := f.btree.AddBTree(f.fieldName); err != nil {
+			f.Logger.Error("[ERROR] field %v Create Btree Error : %v", f.fieldName, err)
+			return err
+		}
+		pfis := make([]*profileindex, 0)
+		for _, fd := range fields {
+			if fd.pfi != nil {
+				pfis = append(pfis, fd.pfi)
+			} else {
+				f.Logger.Error("[INFO] Invert %v is nil")
+			}
+		}
+		if err := f.pfi.mergeProfileIndex(pfis, segmentName, btree); err != nil {
+			return err
+		}
+	}
+
+	if f.ivt != nil {
+		// TODO 考虑删除，为字段倒排新建数据表
+		f.btree = btree
+		if err := f.btree.AddBTree(f.fieldName); err != nil {
 			f.Logger.Error("[ERROR] Invert %v Create Btree Error : %v", f.fieldName, err)
 			return err
 		}
@@ -240,11 +306,12 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 				f.Logger.Error("[INFO] Invert %v is nil")
 			}
 		}
-		if err := f.ivt.mergeInvert(ivts, segmentName, btree); err != nil {
+		if err := f.ivt.mergeInvert(ivts, segmentName); err != nil {
 			return err
 		}
 	}
 
+	// TODO 下面这段代码是否需要? index中合并完后会将段重新从文件中加载出来的
 	var err error
 	f.idxMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_invert.idx", segmentName, f.fieldName), utils.MODE_APPEND)
 	if err != nil {
@@ -258,7 +325,12 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 		f.Logger.Error("[ERROR] Mmap error : %v", err)
 	}
 	f.pflMmap.SetFileEnd(0)
-	f.Logger.Debug("[INFO] Load Invert File : %v%v_profile.pfl", segmentName, f.fieldName)
+
+	f.pfiMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_profileindex.pfi", segmentName, f.fieldName), utils.MODE_APPEND)
+	if err != nil {
+		f.Logger.Error("[ERROR] Mmap error : %v", err)
+	}
+	f.pfiMmap.SetFileEnd(0)
 
 	f.dtlMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_detail.dtl", segmentName, f.fieldName), utils.MODE_APPEND)
 	if err != nil {
@@ -276,6 +348,7 @@ func (f *Field) setMmap() {
 	f.setIdxMmap(f.idxMmap)
 	f.setPflMmap(f.pflMmap)
 	f.setDtlMmap(f.dtlMmap)
+	f.setPfiMmap(f.pfiMmap)
 }
 
 func (f *Field) setIdxMmap(idxMmap *utils.Mmap) {
@@ -287,6 +360,12 @@ func (f *Field) setIdxMmap(idxMmap *utils.Mmap) {
 func (f *Field) setPflMmap(pflMmap *utils.Mmap) {
 	if f.pfl != nil {
 		f.pfl.setPflMmap(pflMmap)
+	}
+}
+
+func (f *Field) setPfiMmap(pflidxMmap *utils.Mmap) {
+	if f.pfi != nil {
+		f.pfi.setPfiMmap(pflidxMmap)
 	}
 }
 

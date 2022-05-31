@@ -12,7 +12,6 @@ import (
 	"github.com/boltdb/bolt"
 	"log"
 	"testing"
-	"utils"
 )
 
 func TestBoltDB(t *testing.T) {
@@ -34,26 +33,14 @@ func TestBoltDB(t *testing.T) {
 }
 
 func TestCreateDB(t *testing.T) {
-	logger, err := utils.New("FalconSearcher")
-	if err != nil {
-		fmt.Printf("err happen: %v", err)
-	}
 
-	btdb := tree.NewBTDB("./test.bt", logger)
+	btdb := tree.NewBTDB("./test.bt", nil)
 
-	err = btdb.AddTree("http")
+	err := btdb.AddBTree("http")
 	if err != nil {
 		return
 	}
 
-	btdb.Set("http", "name", uint64(124))
-	btdb.Set("http", "maoqiu", uint64(12))
-	btdb.Set("http", "mmp", uint64(552))
-
-	search, u := btdb.Search("http", "name")
-	if search {
-		fmt.Println(u)
-	}
 }
 
 func TestInt(t *testing.T) {

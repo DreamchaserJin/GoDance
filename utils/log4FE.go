@@ -18,13 +18,13 @@ type Log4FE struct {
 
 func New(service string) (log4FE *Log4FE, err error) {
 	// TODO: 从配置文件里面读取：日志模式、日志路径、日志缓存
-	filename := fmt.Sprintf("/var/log/FalconEngine/logs/%s.log", service, service)
+	filename := fmt.Sprintf("/var/log/FalconEngine/logs/%s.log", service)
 
 	// 初始化Log4FE
-	out, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	out, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		filename = fmt.Sprintf("%s.log", service)
-		out, err = os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		out, err = os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
 		if err != nil {
 			return nil, err
 		}
@@ -46,48 +46,42 @@ func New(service string) (log4FE *Log4FE, err error) {
 	return log4FE, nil
 }
 
-func (this *Log4FE) Close() (err error) {
-	return this.file_handle.Close()
+func (l *Log4FE) Close() (err error) {
+	return l.file_handle.Close()
 }
 
-func (this *Log4FE) Abc(p1 string, p2 int) (err error) {
-	fmt.Println(p1, p2)
-
-	return nil
-}
-
-func (this *Log4FE) log(level string, format string, args ...interface{}) (err error) {
+func (l *Log4FE) log(level string, format string, args ...interface{}) (err error) {
 	msg := fmt.Sprintf(format, args...)
 	fmt.Println(msg)
 
 	_, filepath, filenum, _ := runtime.Caller(2)
 	filename := path.Base(filepath)
-	logmsg := fmt.Sprintf("%s %s %s %s %d - %s", this.service_name, this.service_env, level, filename, filenum, msg)
-	this.logger_handle.Log(logger.DebugLevel, logmsg)
+	logmsg := fmt.Sprintf("%s %s %s %s %d - %s", l.service_name, l.service_env, level, filename, filenum, msg)
+	l.logger_handle.Log(logger.DebugLevel, logmsg)
 
 	return nil
 }
 
-func (this *Log4FE) Fatal(format string, args ...interface{}) (err error) {
-	return this.log("FATAL", format, args...)
+func (l *Log4FE) Fatal(format string, args ...interface{}) (err error) {
+	return l.log("FATAL", format, args...)
 }
 
-func (this *Log4FE) Error(format string, args ...interface{}) (err error) {
-	return this.log("ERROR", format, args...)
+func (l *Log4FE) Error(format string, args ...interface{}) (err error) {
+	return l.log("ERROR", format, args...)
 }
 
-func (this *Log4FE) Warn(format string, args ...interface{}) (err error) {
-	return this.log("WARN", format, args...)
+func (l *Log4FE) Warn(format string, args ...interface{}) (err error) {
+	return l.log("WARN", format, args...)
 }
 
-func (this *Log4FE) Info(format string, args ...interface{}) (err error) {
-	return this.log("INFO", format, args...)
+func (l *Log4FE) Info(format string, args ...interface{}) (err error) {
+	return l.log("INFO", format, args...)
 }
 
-func (this *Log4FE) Debug(format string, args ...interface{}) (err error) {
-	return //this.log("DEBUG", format, args...)
+func (l *Log4FE) Debug(format string, args ...interface{}) (err error) {
+	return l.log("DEBUG", format, args...)
 }
 
-func (this *Log4FE) Trace(format string, args ...interface{}) (err error) {
-	return //this.log("TRACE", format, args...)
+func (l *Log4FE) Trace(format string, args ...interface{}) (err error) {
+	return l.log("TRACE", format, args...)
 }

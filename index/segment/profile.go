@@ -1,15 +1,17 @@
 /**
  * @Author hz
  * @Date 6:20 AM$ 5/21/22$
- * @Note
+ * @Note 文档仓 用于存储所有文档
  **/
 
 package segment
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"utils"
 )
 
@@ -23,6 +25,7 @@ type profile struct {
 
 	pflNumber []int64
 	pflString []string
+	pflFloat  []float64
 	pflMmap   *utils.Mmap
 	dtlMmap   *utils.Mmap
 
@@ -95,18 +98,46 @@ func newProfileFromLocalFile(fieldName string, fieldType, start, cur uint32, pfl
 		dtlMmap:    dtlMmap,
 		Logger:     logger,
 	}
-
 	return pfl
 }
 
-//
 //  addDocument
-//  @Description: 新增文档
+//  @Description 新增文档
 //  @param docId 文档ID
 //  @param contentStr 内容
 //  @return error 任何错误
-//
 func (pfl *profile) addDocument(docId uint32, contentStr string) error {
+	if docId != pfl.maxDocId || pfl.isMemory == false {
+		return errors.New("profile AddDocument :: Wrong DocId Number")
+	}
+	pfl.Logger.Trace("[TRACE] docId %v content %v", docId, contentStr)
+
+	// 最终存进去的值，如果是 -1 则表示空值
+	var value int64 = -1
+	var err error
+	if pfl.fieldType == utils.IDX_TYPE_NUMBER {
+		value, err = strconv.ParseInt(contentStr, 10, 64)
+		if err != nil {
+			value = -1
+		}
+		pfl.pflNumber = append(pfl.pflNumber, value)
+
+	} else if pfl.fieldType == utils.IDX_TYPE_DATE {
+
+		value, _ = utils.IsDateTime(contentStr)
+		pfl.pflNumber = append(pfl.pflNumber, value)
+
+	} else if pfl.fieldType == utils.IDX_TYPE_FLOAT {
+		f, err := strconv.ParseFloat(contentStr, 64)
+		if err != nil {
+			value = -1
+		}
+		value = int64(f * 100)
+		pfl.pflNumber = append(pfl.pflNumber, value)
+	} else {
+		pfl.pflString = append(pfl.pflString, contentStr)
+	}
+
 	return nil
 }
 
@@ -126,7 +157,8 @@ func (pfl *profile) serialization(segmentName string) error {
 	}
 	defer pflFd.Close()
 
-	if pfl.fieldType == utils.IDX_TYPE_NUMBER || pfl.fieldType == utils.IDX_TYPE_DATE {
+	if pfl.fieldType == utils.IDX_TYPE_NUMBER || pfl.fieldType == utils.IDX_TYPE_DATE ||
+		pfl.fieldType == utils.IDX_TYPE_FLOAT {
 		valueBuffer := make([]byte, 8)
 
 		for _, info := range pfl.pflNumber {
@@ -174,7 +206,7 @@ func (pfl *profile) serialization(segmentName string) error {
 
 //
 //  destroy
-//  @Description: 从内存回收正排对象
+//  @Description 回收内存
 //
 func (pfl *profile) destroy() {
 	pfl.pflString = nil
@@ -191,13 +223,12 @@ func (pfl *profile) setDtlMmap(dtlMmap *utils.Mmap) {
 
 //
 //  mergeProfiles
-//  @Description: 合并正排对象
+//  @Description 合并正排对象
 //  @param profiles 需要合并的正排对象
 //  @param segmentName 段名
 //  @return uint32 文档长度
 //  @return error 任何错误
-//
-func (pfl *profile) mergeProfiles(profiles []*profile, segmentName string) (uint32, error) {
+func (pfl *profile) mergeProfiles(profiles []*profile, segmentName string, delDocSet map[uint32]struct{}) (uint32, error) {
 	pflFileName := fmt.Sprintf("%v%v_profile.pfl", segmentName, pfl.fieldName)
 
 	pflFd, err := os.OpenFile(pflFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
@@ -208,7 +239,8 @@ func (pfl *profile) mergeProfiles(profiles []*profile, segmentName string) (uint
 	defer pflFd.Close()
 	var lens uint32
 
-	if pfl.fieldType == utils.IDX_TYPE_NUMBER || pfl.fieldType == utils.IDX_TYPE_DATE {
+	if pfl.fieldType == utils.IDX_TYPE_NUMBER || pfl.fieldType == utils.IDX_TYPE_DATE ||
+		pfl.fieldType == utils.IDX_TYPE_FLOAT {
 		valBuffer := make([]byte, 8)
 		for _, p := range profiles {
 			for i := uint32(0); i < (p.maxDocId - p.startDocId); i++ {
@@ -235,6 +267,25 @@ func (pfl *profile) mergeProfiles(profiles []*profile, segmentName string) (uint
 		lenBuffer := make([]byte, 8)
 		for _, p := range profiles {
 			for i := uint32(0); i < (p.maxDocId - p.startDocId); i++ {
+				if _, ok := delDocSet[p.startDocId+i]; ok {
+
+					binary.LittleEndian.PutUint64(lenBuffer, uint64(0))
+					_, err := dtlFd.Write(lenBuffer)
+					if err != nil {
+						pfl.Logger.Error("[ERROR] StringProfile Write Error : %v", err)
+					}
+
+					binary.LittleEndian.PutUint64(lenBuffer, uint64(dtlOffset))
+					_, err = pflFd.Write(lenBuffer)
+					if err != nil {
+						pfl.Logger.Error("[ERROR] StringProfile Write Error : %v", err)
+					}
+					dtlOffset += 8
+					pfl.maxDocId++
+
+					continue
+				}
+
 				val, _ := p.getValue(i)
 				valLen := len(val)
 				binary.LittleEndian.PutUint64(lenBuffer, uint64(valLen))
@@ -262,6 +313,11 @@ func (pfl *profile) mergeProfiles(profiles []*profile, segmentName string) (uint
 	return lens, nil
 }
 
+// getValue
+// @Description
+// @Param pos
+// @Return string
+// @Return bool
 func (pfl *profile) getValue(pos uint32) (string, bool) {
 	if pfl.fake {
 		return "", true
@@ -272,6 +328,8 @@ func (pfl *profile) getValue(pos uint32) (string, bool) {
 			return fmt.Sprintf("%v", pfl.pflNumber[pos]), true
 		} else if pfl.fieldType == utils.IDX_TYPE_DATE {
 			return utils.FormatDateTime(pfl.pflNumber[pos])
+		} else if pfl.fieldType == utils.IDX_TYPE_FLOAT {
+			return fmt.Sprintf("%v", float64(pfl.pflNumber[pos])/100), true
 		}
 		return pfl.pflString[pos], true
 	}
@@ -285,6 +343,9 @@ func (pfl *profile) getValue(pos uint32) (string, bool) {
 		return fmt.Sprintf("%v", pfl.pflMmap.ReadInt64(offset)), true
 	} else if pfl.fieldType == utils.IDX_TYPE_DATE {
 		return utils.FormatDateTime(pfl.pflMmap.ReadInt64(offset))
+	} else if pfl.fieldType == utils.IDX_TYPE_FLOAT {
+		val := pfl.pflMmap.ReadInt64(offset)
+		return fmt.Sprintf("%v", float64(val)/100), true
 	}
 
 	if pfl.dtlMmap == nil {
@@ -296,14 +357,19 @@ func (pfl *profile) getValue(pos uint32) (string, bool) {
 	return pfl.dtlMmap.ReadString(dtlOffset+8, lens), true
 }
 
+// getIntValue
+// @Description
+// @Param pos
+// @Return int64
+// @Return bool
 func (pfl *profile) getIntValue(pos uint32) (int64, bool) {
 	if pfl.fake {
-		return 0xFFFFFFFF, true
+		return -1, true
 	}
 
 	if pfl.isMemory {
-		if pfl.fieldType == utils.IDX_TYPE_NUMBER || pfl.fieldType == utils.IDX_TYPE_DATE &&
-			pos < uint32(len(pfl.pflNumber)) {
+		if (pfl.fieldType == utils.IDX_TYPE_NUMBER || pfl.fieldType == utils.IDX_TYPE_DATE ||
+			pfl.fieldType == utils.IDX_TYPE_FLOAT) && pos < uint32(len(pfl.pflNumber)) {
 			return pfl.pflNumber[pos], true
 		}
 		return -1, false
@@ -314,7 +380,8 @@ func (pfl *profile) getIntValue(pos uint32) (int64, bool) {
 	}
 
 	offset := int64(pos) * 8
-	if pfl.fieldType == utils.IDX_TYPE_NUMBER || pfl.fieldType == utils.IDX_TYPE_DATE {
+	if pfl.fieldType == utils.IDX_TYPE_NUMBER || pfl.fieldType == utils.IDX_TYPE_DATE ||
+		pfl.fieldType == utils.IDX_TYPE_FLOAT {
 		return pfl.pflMmap.ReadInt64(offset), true
 	}
 
