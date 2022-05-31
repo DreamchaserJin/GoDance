@@ -1,4 +1,4 @@
-package metaData
+package cluster
 
 type ShardState int8
 

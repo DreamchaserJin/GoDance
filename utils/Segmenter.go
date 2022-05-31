@@ -93,9 +93,9 @@ func (this *Segmenter) SegmentWithSingle(content string) ([]TermInfo, int) {
 	//resterms := make([]TermInfo, 0)
 	//for _, r := range rstr {
 	//	if _, ok := termmap[r]; !ok {
-	//		resterms = append(resterms, TermInfo{Term: string(r), Tf: 0})
+	//		resterms = append(resterms, TermInfo{term: string(r), Tf: 0})
 	//	}
-	//termmap[r] = TermInfo{Term: string(r), Tf: int(py)}
+	//termmap[r] = TermInfo{term: string(r), Tf: int(py)}
 	//}
 
 	//resterms := make([]TermInfo, len(termmap))
@@ -144,11 +144,11 @@ func (this *Segmenter) SegmentWithTf(content string, search_mode bool) ([]TermIn
 	               termmap[segments[i].Token().Text()]=t
 	               continue
 	           }
-	   		t:= TermInfo{Term:segments[i].Token().Text(),Tf:1}
+	   		t:= TermInfo{term:segments[i].Token().Text(),Tf:1}
 	   		//terms[idx].Tf = 1//segments[i].Token().Frequency()
-	           //termmap[terms[idx].Term]=true
+	           //termmap[terms[idx].term]=true
 	           termmap[segments[i].Token().Text()] =t
-	           //fmt.Printf("[TREM:%v,FREQ:%v] ",terms[idx].Term,terms[idx].Tf)
+	           //fmt.Printf("[TREM:%v,FREQ:%v] ",terms[idx].term,terms[idx].Tf)
 	   		//idx++
 	   	}
 	       fmt.Printf("[TREM:%v] ",termmap)
