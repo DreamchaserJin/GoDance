@@ -102,24 +102,24 @@ func (s *Server) RequestVote(r *voteArgs, res *voteReply) error {
 //	}
 //	return nil
 //}
-// entryResponse 探活请求（日志请求）
-type entryResponse struct {
+// heartReply 探活请求（日志请求）
+type heartReply struct {
 	//是否接受领导
 	success bool
+	//latest log id(committed)
+	logEntryId uint64
 	//节点状态
 	state CMState
 	//接受到探活请求的任期
 	term int64
 }
 
-type commonResponse struct {
+type commonReply struct {
 	success bool
-	//leader Id that current node think
-	leaderId int64
 }
 
 // HeatBeat 探活请求，由主节点来调用此RPC方法
-func (s *Server) HeatBeat(r *voteArgs, res *entryResponse) error {
+func (s *Server) HeatBeat(r *voteArgs, res *heartReply) error {
 	self := State.selfState
 	res.state = State.selfState.state
 	//如果发现小于自己任期时，拒绝承认该节点
@@ -131,27 +131,43 @@ func (s *Server) HeatBeat(r *voteArgs, res *entryResponse) error {
 	//当发现探活请求的主节点和自己认为的主节点不一致且任期比自己的大时，切换主节点
 	if self.masterId != r.id && r.term > self.term {
 		self.masterId = r.id
-		//退出主节点时需要主动关闭
+		//退出主节点时需要主动关闭clients
 		for _, c := range clients {
-			c.Close()
+			c.client.Close()
 		}
 		//free up space，trigger GC
 		clients = nil
 	}
 	res.success = true
 	heartBeat = time.Now()
-	//当检测到主节点和从节点数据版本不一致时，开始拉数据
-	if r.version > State.clusterState.version {
-		pullMeta()
-	}
 	return nil
 }
-func (s *Server) tryJoin(n *node, r *commonResponse) {
-	if State.selfState.state != Leader {
-		r.success = false
-	}
+
+// AppendEntries RPC called by leader
+func (s *Server) AppendEntries(logEntry *logEntry, reply *commonReply) error {
+	appendSelfLog(logEntry)
+	reply.success = true
+	return nil
 }
 
-//todo 用于拉取数据
-func pullMeta() {
+/**
+JoinNode Rpc
+*/
+func (s *Server) tryJoin(n *node, r *commonReply) error {
+	if State.selfState.state != Leader {
+		r.success = false
+		return nil
+	}
+	//1.send log to other nodes by AppendEntries
+	entry := NewNodeAddLog(n)
+	//2.appendEntry
+	success := appendClusterLog(entry)
+	//3.load log to state when success
+	if success {
+		entry.load2State()
+		r.success = true
+		return nil
+	}
+	r.success = false
+	return nil
 }

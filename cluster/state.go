@@ -5,7 +5,7 @@ import (
 )
 
 var (
-	// State 当前的状态信息，包括集群状态和自身节点的状态
+	// State 当前的状态信息，包括集群状态和自身节点的状态,可以理解为raft算法里的状态机
 	State = &state{}
 )
 
@@ -13,7 +13,7 @@ type state struct {
 	clusterState clusterState
 	selfState    selfState
 	// Mutex 用于控制读写
-	Mutex sync.RWMutex
+	mutex sync.RWMutex
 }
 type selfState struct {
 	//节点id
@@ -30,8 +30,6 @@ type selfState struct {
 	masterId int64
 	//任期
 	term int64
-	//是否是主节点
-	isMaster bool
 	//是否是数据节点
 	isDataNode bool
 	//是否是候选主节点
@@ -74,13 +72,13 @@ type ShardRooting struct {
 	Rooting []ShardMeta
 }
 
-func (c *clusterState) AddNode(np *node) {
+func (c *clusterState) addNode(np *node) {
 	c.mutex.Lock()
 	c.Nodes.AddNode(np)
 	c.version += 1
 	c.mutex.Unlock()
 }
-func (c *clusterState) DeleteNode(id int64) {
+func (c *clusterState) deleteNode(id int64) {
 	c.mutex.Lock()
 	c.Nodes.DeleteNode(id)
 	c.version += 1
