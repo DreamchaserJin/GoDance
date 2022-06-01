@@ -18,8 +18,12 @@ func DocWeight(keyWords []string, TitleWords [][]string, ContentWords [][]string
 
 	// TF-IDF
 	// title、content权重，然后两者权重和就是TF-IDF
-	titleWeight := WordWeight(keyWords, TitleWords)
-	contentWeight := WordWeight(keyWords, ContentWords)
+	titleTf := TF(keyWords, TitleWords)
+	titleIdf := IDF(keyWords, TitleWords)
+	titleWeight := WordWeight(titleTf, titleIdf)
+	wordTf := TF(keyWords, ContentWords)
+	wordIdf := IDF(keyWords, ContentWords)
+	contentWeight := WordWeight(wordTf, wordIdf)
 	TFIDFWeight := TwoWeightSum(titleWeight, contentWeight, TITLEBOOST)
 	fmt.Println("TF-IDF:", TFIDFWeight)
 

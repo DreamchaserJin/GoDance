@@ -60,16 +60,10 @@ func IDF(keyWords []string, listWords [][]string) map[string]float64 {
 //  @param listWords
 //  @return WordTfIdfs
 //
-func WordWeight(keyWords []string, listWords [][]string) WordTfIdfs {
-	// 1. TF
-	wordTf := TF(keyWords, listWords)
-
-	// 2. IDF
-	wordIdf := IDF(keyWords, listWords)
-
+func WordWeight(wordTf map[string]float64, wordIdf map[string]float64) WordTfIdfs {
 	// 3. TF * IDF
 	var wordidfS WordTfIdfs
-	for _, word := range keyWords {
+	for word := range wordTf {
 		var wti WordTfIdf
 		wti.Word = word
 		wti.Value = wordTf[word] * wordIdf[word]
