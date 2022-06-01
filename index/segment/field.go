@@ -62,10 +62,7 @@ func newEmptyField(fieldName string, start, fieldType uint32, logger *utils.Log4
 	}
 
 	if fieldType == utils.IDX_TYPE_STRING ||
-		fieldType == utils.IDX_TYPE_STRING_SEG ||
-		fieldType == utils.IDX_TYPE_STRING_LIST ||
-		fieldType == utils.IDX_TYPE_STRING_SINGLE ||
-		fieldType == utils.GATHER_TYPE {
+		fieldType == utils.IDX_TYPE_STRING_SEG {
 		f.ivt = newEmptyInvert(fieldType, start, fieldName, logger)
 	}
 	if fieldType == utils.IDX_TYPE_NUMBER ||
@@ -118,10 +115,7 @@ func newFieldFromLocalFile(fieldName, segmentName string, start, max uint32,
 
 	f.Logger.Info("[INFO] Field %v Serialization Finish", f.fieldName)
 	if fieldType == utils.IDX_TYPE_STRING ||
-		fieldType == utils.IDX_TYPE_STRING_SEG ||
-		fieldType == utils.IDX_TYPE_STRING_LIST ||
-		fieldType == utils.IDX_TYPE_STRING_SINGLE ||
-		fieldType == utils.GATHER_TYPE {
+		fieldType == utils.IDX_TYPE_STRING_SEG {
 		f.ivt = newInvertFromLocalFile(btree, fieldType, fieldName, segmentName, f.idxMmap, logger)
 	}
 
@@ -132,6 +126,8 @@ func newFieldFromLocalFile(fieldName, segmentName string, start, max uint32,
 	}
 
 	f.pfl = newProfileFromLocalFile(fieldName, fieldType, f.startDocId, f.maxDocId, f.pflMmap, f.dtlMmap, logger)
+
+	f.setMmap()
 
 	return f
 }
@@ -311,37 +307,7 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 		}
 	}
 
-	// TODO 下面这段代码是否需要? index中合并完后会将段重新从文件中加载出来的
-	var err error
-	f.idxMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_invert.idx", segmentName, f.fieldName), utils.MODE_APPEND)
-	if err != nil {
-		f.Logger.Error("[ERROR] Mmap error : %v", err)
-	}
-	f.idxMmap.SetFileEnd(0)
-	f.Logger.Debug("[INFO] Load Invert File : %v%v_invert.idx", segmentName, f.fieldName)
-
-	f.pflMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_profile.pfl", segmentName, f.fieldName), utils.MODE_APPEND)
-	if err != nil {
-		f.Logger.Error("[ERROR] Mmap error : %v", err)
-	}
-	f.pflMmap.SetFileEnd(0)
-
-	f.pfiMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_profileindex.pfi", segmentName, f.fieldName), utils.MODE_APPEND)
-	if err != nil {
-		f.Logger.Error("[ERROR] Mmap error : %v", err)
-	}
-	f.pfiMmap.SetFileEnd(0)
-
-	f.dtlMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_detail.dtl", segmentName, f.fieldName), utils.MODE_APPEND)
-	if err != nil {
-		f.Logger.Error("[ERROR] Mmap error : %v", err)
-	}
-	f.dtlMmap.SetFileEnd(0)
-	f.Logger.Debug("[INFO] Load Invert File : %v%v_detail.dtl", segmentName, f.fieldName)
-
-	f.setMmap()
-
-	return err
+	return nil
 }
 
 func (f *Field) setMmap() {

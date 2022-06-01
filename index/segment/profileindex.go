@@ -75,12 +75,19 @@ func (pfi *profileindex) addDocument(docId uint32, contentStr string) error {
 	var value int64 = -1
 
 	switch pfi.fieldType {
-	case utils.IDX_TYPE_FLOAT, utils.IDX_TYPE_NUMBER:
+	case utils.IDX_TYPE_NUMBER:
+
 		intValue, err := strconv.Atoi(contentStr)
 		if err != nil {
 			intValue = -1
 		}
 		value = int64(intValue)
+	case utils.IDX_TYPE_FLOAT:
+		floatValue, err := strconv.ParseFloat(contentStr, 64)
+		if err != nil {
+			floatValue = -100
+		}
+		value = int64(floatValue * 100)
 	case utils.IDX_TYPE_DATE:
 		value, _ = utils.IsDateTime(contentStr)
 	}
