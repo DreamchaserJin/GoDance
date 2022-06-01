@@ -131,6 +131,12 @@ func (s *Server) HeatBeat(r *voteArgs, res *entryResponse) error {
 	//当发现探活请求的主节点和自己认为的主节点不一致且任期比自己的大时，切换主节点
 	if self.masterId != r.id && r.term > self.term {
 		self.masterId = r.id
+		//退出主节点时需要主动关闭
+		for _, c := range clients {
+			c.Close()
+		}
+		//free up space，trigger GC
+		clients = nil
 	}
 	res.success = true
 	heartBeat = time.Now()
