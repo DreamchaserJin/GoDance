@@ -80,13 +80,17 @@ func newInvertFromLocalFile(btdb *tree.BTreeDB, fieldType uint32, fieldName, seg
 
 // 添加文档
 func (ivt *invert) addDocument(docId uint32, contentStr string) error {
-	docIdNode := utils.DocIdNode{Docid: docId, Weight: 0}
-	ivt.memoryHashMap[contentStr] = append(ivt.memoryHashMap[contentStr], docIdNode)
+	// TODO 计算权重
+	segmenter := utils.GetGseSegmenter()
+	segResult := segmenter.CutSearch(contentStr, false)
+	for _, val := range segResult {
+		docIdNode := utils.DocIdNode{Docid: docId, Weight: 0}
+		ivt.memoryHashMap[val] = append(ivt.memoryHashMap[contentStr], docIdNode)
+	}
 	return nil
 }
 
 func (ivt *invert) serialization(segmentName string, btree *tree.BTreeDB) error {
-	// TODO 添加fst
 	// fst存储文件名
 	fstFileName := fmt.Sprintf("%v%v_invert.fst", segmentName, ivt.fieldName)
 	// 打开fst文件
@@ -438,6 +442,7 @@ func (ivt *invert) mergeFSTIteratorList(segmentName string, mergeFSTNodes []*Fst
 //}
 
 func (ivt *invert) queryTerm(keyStr string) ([]utils.DocIdNode, bool) {
+	// TODO 添加分词逻辑
 
 	if ivt.isMemory == true {
 		docIds, ok := ivt.memoryHashMap[keyStr]
