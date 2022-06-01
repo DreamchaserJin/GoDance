@@ -419,8 +419,7 @@ func (idx *Index) SyncMemorySegment() error {
 }
 
 // CheckMerge
-// @Description 返回一些信息用于判断是否需要合并
-// @Return 一些信息（未完成）
+// @Description
 func (idx *Index) CheckMerge() {
 
 }
