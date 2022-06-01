@@ -37,7 +37,7 @@ func NewSegmenter(dic_name string) *Segmenter {
 }
 
 func (this *Segmenter) Segment(content string, search_mode bool) []string {
-
+	// TODO 考虑换成gse
 	text := []byte(content)
 	fmt.Println("content : ", content)
 	segments := this.segmenter.Segment(text)
