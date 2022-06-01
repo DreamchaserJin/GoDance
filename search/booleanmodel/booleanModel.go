@@ -21,7 +21,7 @@ func DocMergeAndFilter(keyMap map[string][]int, filterMap map[string][]int) []in
 	}
 
 	// 初始化小顶堆 ： 按照数组的长度排序
-	h := &Heap{}
+	h := &BMHeap{}
 	heap.Init(h)
 
 	// 所有关键词文档加入小顶堆

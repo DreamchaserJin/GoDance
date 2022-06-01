@@ -12,13 +12,7 @@ type WordTfIdf struct {
 
 type WordTfIdfs []WordTfIdf
 
-/*************************************************************************
-*  WordWeight： 计算单词的权重
-*  TitleAndContentWeight： 一篇文章两种类型的权重和，比如标题，摘要，内容
-************************************************************************/
-
-func WordWeight(keyWords []string, listWords [][]string) WordTfIdfs {
-	// 1. TF
+func TF(keyWords []string, listWords [][]string) map[string]float64 {
 	// 用map统计单词出现次数
 	docFrequency := make(map[string]float64, 0)
 	sumWorlds := 0
@@ -34,8 +28,10 @@ func WordWeight(keyWords []string, listWords [][]string) WordTfIdfs {
 	for _, word := range keyWords {
 		wordTf[word] = docFrequency[word] / float64(sumWorlds)
 	}
+	return wordTf
+}
 
-	// 2. IDF
+func IDF(keyWords []string, listWords [][]string) map[string]float64 {
 	docNum := float64(len(listWords))
 	wordIdf := make(map[string]float64)
 	// 统计每个关键词在几篇文章中
@@ -54,6 +50,23 @@ func WordWeight(keyWords []string, listWords [][]string) WordTfIdfs {
 	for _, word := range keyWords {
 		wordIdf[word] = math.Log(docNum / (wordDoc[word] + 1))
 	}
+	return wordIdf
+}
+
+//
+//  WordWeight
+//  @Description: 计算单词的TF-IDF权重
+//  @param keyWords
+//  @param listWords
+//  @return WordTfIdfs
+//
+func WordWeight(keyWords []string, listWords [][]string) WordTfIdfs {
+	// 1. TF
+	wordTf := TF(keyWords, listWords)
+
+	// 2. IDF
+	wordIdf := IDF(keyWords, listWords)
+
 	// 3. TF * IDF
 	var wordidfS WordTfIdfs
 	for _, word := range keyWords {
@@ -65,7 +78,14 @@ func WordWeight(keyWords []string, listWords [][]string) WordTfIdfs {
 	return wordidfS
 }
 
-// BOOST: 第一种类型是第二种类型的权重倍数
+//
+//  TwoWeightSum
+//  @Description: 一篇文章两种类型的权重和，比如标题，摘要，内容；BOOST控制倍数
+//  @param WeightType1
+//  @param WeightType2
+//  @param BOOST
+//  @return WordTfIdfs
+//
 func TwoWeightSum(WeightType1 WordTfIdfs, WeightType2 WordTfIdfs, BOOST float64) WordTfIdfs {
 	var sumWeight WordTfIdfs
 	// 都是以关键词的顺序进行遍历
