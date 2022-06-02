@@ -167,6 +167,14 @@ func (f *Field) addDocument(docId uint32, contentStr string) error {
 	return nil
 }
 
+func (f *Field) query(key string) ([]utils.DocIdNode, bool) {
+	if f.ivt == nil {
+		return nil, false
+	}
+
+	return f.ivt.queryTerm(fmt.Sprintf("%v", key))
+}
+
 func (f *Field) serialization(segmentName string, btdb *tree.BTreeDB) error {
 
 	if f.pfl != nil {
@@ -191,16 +199,11 @@ func (f *Field) serialization(segmentName string, btdb *tree.BTreeDB) error {
 	}
 
 	if f.ivt != nil {
-		//f.btree = btdb
-		//if err := f.btree.AddBTree(f.fieldName); err != nil {
-		//	f.Logger.Error("[ERROR] Field Serialization, Create BPTree ERROR : %v", err)
-		//	return err
-		//}
-		//err := f.ivt.serialization(segmentName, f.btree)
-		//if err != nil {
-		//	f.Logger.Error("[ERROR] Field Serialization Error : %v", err)
-		//	return err
-		//}
+		err := f.ivt.serialization(segmentName, f.btree)
+		if err != nil {
+			f.Logger.Error("[ERROR] Field Serialization Error : %v", err)
+			return err
+		}
 	}
 
 	var err error

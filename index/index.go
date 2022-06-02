@@ -552,7 +552,66 @@ func (idx *Index) Close() error {
 
 }
 
-// 搜索相关的方法(还没写 API)
+// SearchDocIds
+// @Description 最基本的搜索方法
+// @Param queries 搜索结构体切片，定义本次搜索需要查找的内容
+// @Param filters 过滤结构体切片，定义本次搜索需要过滤的内容
+// @Return []utils.DocIdNode 查找的文档 id 列表
+// @Return bool 是否查找到结果
+//func (idx *Index) SearchDocIds(queries []utils.SearchQuery, filters []utils.SearchFilters) ([]utils.DocIdNode, bool) {
+//
+//	// 最终返回的结果
+//	docIds := make([]utils.DocIdNode, 0)
+//	filterDocIds := make([]utils.DocIdNode, 0)
+//
+//	if len(queries) == 0 {
+//		return nil, true
+//	}
+//
+//	if len(queries) >= 1 {
+//		for _, seg := range idx.segments {
+//			docIds, _ = seg.SearchDocIds(queries[0], idx.bitmap, docIds)
+//		}
+//	}
+//
+//	if len(queries) == 1 {
+//		if filters == nil || len(filters) == 0 {
+//			return docIds, true
+//		}
+//
+//		if len(filters) == 1 {
+//			for _, seg := range idx.segments {
+//				filterDocIds, _ = seg.SearchDocFilter(filters[0], idx.bitmap, filterDocIds)
+//			}
+//			docIds, _ = utils.Interaction(docIds, filterDocIds)
+//		}
+//
+//		return docIds, true
+//	}
+//
+//	for _, query := range queries[1:] {
+//		subDocIds := make([]utils.DocIdNode, 0)
+//		for _, seg := range idx.segments {
+//			subDocIds, _ = seg.SearchDocIds(query, idx.bitmap, subDocIds)
+//		}
+//		docIds, _ = utils.InteractionWithDf(docIds, subDocIds, len(subDocIds), idx.MaxDocId)
+//	}
+//
+//	if filters == nil || len(filters) == 0 {
+//		return docIds, true
+//	}
+//
+//	return docIds, true
+//
+//}
+
+func (idx *Index) SearchKeyDocIds(query utils.SearchQuery) ([]utils.DocIdNode, bool) {
+
+	// 最终返回的结果
+	docIds := make([]utils.DocIdNode, 0)
+
+	return docIds, true
+}
 
 // 内部方法
 func (idx *Index) storeIndex() error {
@@ -589,7 +648,6 @@ func (idx *Index) updatePrimaryKey(key int64, docId uint32) error {
 		idx.Logger.Error("[ERROR] update Put key error : %v", err)
 		return err
 	}
-
 	return nil
 }
 

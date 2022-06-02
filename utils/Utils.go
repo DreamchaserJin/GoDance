@@ -103,14 +103,14 @@ type TermInfo struct {
 子查询：必须是有父子
 ************************************************************************/
 // FSSearchQuery function description : 查询接口数据结构[用于倒排索引查询]，内部都是求交集
-type FSSearchQuery struct {
+type SearchQuery struct {
 	FieldName string `json:"_field"`
 	Value     string `json:"_value"`
 	Type      uint64 `json:"_type"`
 }
 
 // FSSearchFilted function description : 过滤接口数据结构，内部都是求交集
-type FSSearchFilted struct {
+type SearchFilters struct {
 	FieldName string   `json:"_field"`
 	Start     int64    `json:"_start"`
 	End       int64    `json:"_end"`
@@ -120,41 +120,16 @@ type FSSearchFilted struct {
 	RangeStr  []string `json:"_rangestr"`
 }
 
-//FSSearchSort description : 排序
-type FSSearchSort struct {
+//SearchSort description : 排序
+type SearchSort struct {
 	FieldName string `json:"_sortfield"`
 	SortType  string `json:"_sorttype"`
 }
 
-// FSSearchGather description : 汇总
-type FSSearchGather struct {
-	FieldNames []string `json:"_gatherfields"`
-}
-
-type FSSearchConfig struct {
+type SearchConfig struct {
 	ShowFields []string `json:"_showfields"`
 	PageSize   int      `json:"_pagesize"`
 	PageNumber int      `json:"_pagenum"`
-}
-
-type FSSearchQueryUnit struct {
-	Querys []FSSearchQuery `json:"_querys"`
-}
-
-type FSSearchUnit struct {
-	QueryUnits []FSSearchQueryUnit `json:"_queryunit"`
-	Filters    []FSSearchFilted    `json:"_filters"`
-	Gather     FSSearchGather      `json:"_gather"`
-	Sort       FSSearchSort        `json:"_sort"`
-	Config     FSSearchConfig      `json:"_config"`
-}
-
-type FSSearchFrontend struct {
-	Query   string           `json:"query"`
-	Filters []FSSearchFilted `json:"_filters"`
-	Gather  FSSearchGather   `json:"_gather"`
-	Sort    FSSearchSort     `json:"_sort"`
-	Config  FSSearchConfig   `json:"_config"`
 }
 
 //统计类型
@@ -393,7 +368,7 @@ func ComputeTfIdf(res []DocIdNode, a []DocIdNode, df int, maxdoc uint32) []DocId
 	return res
 }
 
-func InteractionWithStartAndDf(a []DocIdNode, b []DocIdNode, start int, df int, maxdoc uint32) ([]DocIdNode, bool) {
+func InteractionWithDf(a []DocIdNode, b []DocIdNode, df int, maxdoc uint32) ([]DocIdNode, bool) {
 
 	if a == nil || b == nil {
 		return a, false
@@ -401,15 +376,16 @@ func InteractionWithStartAndDf(a []DocIdNode, b []DocIdNode, start int, df int, 
 
 	lena := len(a)
 	lenb := len(b)
-	lenc := start
-	ia := start
+
+	lenc := 0
+	ia := 0
 	ib := 0
 	idf := math.Log10(float64(maxdoc) / float64(df))
 	for ia < lena && ib < lenb {
 
 		if a[ia].Docid == b[ib].Docid {
 			a[lenc] = a[ia]
-			//uint32((float64(a[ia].Weight) / 10000 * idf ) * 10000)
+
 			a[lenc].Weight += uint32(float64(a[ia].Weight) * idf)
 			lenc++
 			ia++
@@ -476,7 +452,7 @@ func InteractionWithStart(a []DocIdNode, b []DocIdNode, start int) ([]DocIdNode,
 func Interaction(a []DocIdNode, b []DocIdNode) ([]DocIdNode, bool) {
 
 	if a == nil || b == nil {
-		return nil, false
+		return a, false
 	}
 
 	lena := len(a)
@@ -520,7 +496,7 @@ func Interaction(a []DocIdNode, b []DocIdNode) ([]DocIdNode, bool) {
 func InteractionIds(a []uint32, b []uint32) ([]uint32, bool) {
 
 	if a == nil || b == nil {
-		return nil, false
+		return a, false
 	}
 
 	lena := len(a)

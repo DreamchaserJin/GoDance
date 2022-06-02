@@ -178,6 +178,47 @@ func (seg *Segment) GetDocument(docId uint32) (map[string]string, bool) {
 	return nil, false
 }
 
+// SearchDocIds
+// @Description 搜索段的方法
+// @Param query 查询结构体
+// @Param bitmap 位图，用于判断文档是否被删除
+// @Param nowDocNodes 原始切片
+// @Return []utils.DocIdNode 查找完成之后的切片
+// @Return bool 是否查找成功
+func (seg *Segment) SearchDocIds(query utils.SearchQuery,
+	bitmap *utils.Bitmap, nowDocNodes []utils.DocIdNode) ([]utils.DocIdNode, bool) {
+
+	// 倒排查询的 ID 切片
+	docIds := make([]utils.DocIdNode, 0)
+	var ok bool
+
+	if query.Value == "" {
+		return nil, false
+	} else {
+		docIds, ok = seg.fields[query.FieldName].query(query.Value)
+		if !ok {
+			return nowDocNodes, false
+		}
+	}
+
+	// bitmap去除被删除的文档
+	if bitmap != nil {
+		for _, docNode := range docIds {
+			if bitmap.GetBit(uint64(docNode.Docid)) == 0 {
+				nowDocNodes = append(nowDocNodes, docNode)
+			}
+		}
+		return nowDocNodes, true
+	}
+
+	return nowDocNodes, true
+}
+
+func (seg *Segment) SearchDocFilter(filters utils.SearchFilters, bitmap *utils.Bitmap, nowDocNodes []utils.DocIdNode) ([]utils.DocIdNode, bool) {
+
+	return nil, false
+}
+
 // Serialization
 // @Description 序列化段
 // @Return 任何error

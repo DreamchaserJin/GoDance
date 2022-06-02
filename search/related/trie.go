@@ -68,7 +68,7 @@ func (t *Trie) Search(word string) []string {
 			break
 		}
 		for k, v := range no.children {
-			q.Add(v, ru, k)
+			ru = q.Add(v, ru, k)
 		}
 	}
 

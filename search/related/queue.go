@@ -14,7 +14,7 @@ type Queue struct {
 }
 
 // 1. 入队操作
-func (q *Queue) Add(v *Trie, pre []rune, ch rune) {
+func (q *Queue) Add(v *Trie, pre []rune, ch rune) []rune {
 	q.Lock.Lock()
 	defer q.Lock.Unlock()
 
@@ -26,6 +26,7 @@ func (q *Queue) Add(v *Trie, pre []rune, ch rune) {
 	fmt.Println("word", q.word)
 
 	q.Size++
+	return pre
 }
 
 // 2. 出队操作
