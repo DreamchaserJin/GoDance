@@ -39,9 +39,20 @@ func (a DocWeightSort) Len() int      { return len(a) }
 func (a DocWeightSort) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a DocWeightSort) Less(i, j int) bool {
 	if a[i] == a[j] {
-		return a[i].WordTF < a[j].WordTF
+		return CompareFloat64(a[i].WordTF, a[j].WordTF) < 0
 	}
-	return a[i].WordTF < a[j].WordTF
+	return CompareFloat64(a[i].WordTF, a[j].WordTF) < 0
+}
+
+func CompareFloat64(a, b float64) int {
+	if math.Abs(a-b) < 1e-15 {
+		return 0
+	}
+	if math.Max(a, b) == a {
+		return 1
+	} else {
+		return -1
+	}
 }
 
 const DOCNODE_SIZE int = 12 //12
