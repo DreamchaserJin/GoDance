@@ -558,6 +558,7 @@ func (idx *Index) Close() error {
 // @Param filters 过滤结构体切片，定义本次搜索需要过滤的内容
 // @Return []utils.DocIdNode 查找的文档 id 列表
 // @Return bool 是否查找到结果
+// todo 考虑放引擎层
 //func (idx *Index) SearchDocIds(queries []utils.SearchQuery, filters []utils.SearchFilters) ([]utils.DocIdNode, bool) {
 //
 //	// 最终返回的结果
@@ -605,12 +606,40 @@ func (idx *Index) Close() error {
 //
 //}
 
+// SearchKeyDocIds
+// @Description 搜索某个字段的某个关键词的文档的方法
+// @Param query 查询结构体
+// @Return []utils.DocIdNode 查找到的ID
+// @Return bool 是否查找成功
 func (idx *Index) SearchKeyDocIds(query utils.SearchQuery) ([]utils.DocIdNode, bool) {
 
 	// 最终返回的结果
 	docIds := make([]utils.DocIdNode, 0)
+	for _, seg := range idx.segments {
+		docIds, _ = seg.SearchDocIds(query, idx.bitmap, docIds)
+	}
+	if len(docIds) > 0 {
+		return docIds, true
+	}
+	return docIds, false
+}
 
-	return docIds, true
+// SearchFilterDocIds
+// @Description 针对某个过滤条件进行一次查询
+// @Param query 过滤条件结构体
+// @Return []utils.DocIdNode 查找到的ID
+// @Return bool 是否查找成功
+func (idx *Index) SearchFilterDocIds(filter utils.SearchFilters) ([]uint32, bool) {
+
+	// 最终返回的结果
+	docIds := make([]uint32, 0)
+	for _, seg := range idx.segments {
+		docIds, _ = seg.SearchDocFilter(filter, idx.bitmap, docIds)
+	}
+	if len(docIds) > 0 {
+		return docIds, true
+	}
+	return docIds, false
 }
 
 // 内部方法
