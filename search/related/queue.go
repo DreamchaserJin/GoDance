@@ -1,35 +1,34 @@
 package related
 
 import (
-	"fmt"
 	"sync"
 )
 
-// 定义数组队列的数据结构
+// 队列
 type Queue struct {
 	Array []*Trie
-	word  [][]rune
-	Size  int
-	Lock  sync.Mutex
+	// 广搜过程中记录整个单词
+	word [][]rune
+	Size int
+	Lock sync.Mutex
 }
 
-// 1. 入队操作
-func (q *Queue) Add(v *Trie, pre []rune, ch rune) []rune {
+// 入队操作
+func (q *Queue) Add(v *Trie, pre []rune, ch rune) {
 	q.Lock.Lock()
 	defer q.Lock.Unlock()
 
 	q.Array = append(q.Array, v)
-
-	pre = append(pre, ch)
-	q.word = append(q.word, pre)
-	fmt.Println("pre", pre)
-	fmt.Println("word", q.word)
+	// 不能再pre上原地修改,否则会覆盖word中上一次的值
+	p := make([]rune, len(pre))
+	copy(p, pre)
+	p = append(p, ch)
+	q.word = append(q.word, p)
 
 	q.Size++
-	return pre
 }
 
-// 2. 出队操作
+// 出队操作
 func (q *Queue) Remove() (*Trie, []rune) {
 	q.Lock.Lock()
 	defer q.Lock.Unlock()
@@ -41,7 +40,6 @@ func (q *Queue) Remove() (*Trie, []rune) {
 	v := q.Array[0]
 	q.Array = q.Array[1:]
 
-	fmt.Println("Remove", q.word)
 	w := q.word[0]
 	q.word = q.word[1:]
 	q.Size--
