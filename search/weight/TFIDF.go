@@ -12,37 +12,47 @@ type WordTfIdf struct {
 
 type WordTfIdfs []WordTfIdf
 
-func TF(keyWords []string, listWords [][]string) map[string]float64 {
+//
+//  TF
+//  @Description: 统计一段文章的词频
+//  @param listWords
+//  @return map[string]float64
+//
+func TF(listWords []string) map[string]float64 {
 	// 用map统计单词出现次数
 	docFrequency := make(map[string]float64, 0)
 	sumWorlds := 0
-	for _, wordList := range listWords {
-		for _, v := range wordList {
-			docFrequency[v] += 1
-			sumWorlds++
-		}
+	for _, word := range listWords {
+		docFrequency[word] += 1
+		sumWorlds++
 	}
 
 	// 计算TF词频： 关键词 / 所有单词
 	wordTf := make(map[string]float64)
-	for _, word := range keyWords {
+	for word := range docFrequency {
 		wordTf[word] = docFrequency[word] / float64(sumWorlds)
 	}
 	return wordTf
 }
 
-func IDF(keyWords []string, listWords [][]string) map[string]float64 {
-	docNum := float64(len(listWords))
+//
+//  IDF
+//  @Description: 统计搜索词的IDF
+//  @param keyWords
+//  @param docMaps : 搜索词相关的多篇文章的map权重数组
+//  @return map[string]float64
+//
+func IDF(keyWords []string, docMaps []map[string]float64) map[string]float64 {
+	docNum := float64(len(docMaps))
 	wordIdf := make(map[string]float64)
 	// 统计每个关键词在几篇文章中
 	wordDoc := make(map[string]float64, 0)
 	for _, word := range keyWords {
-		for _, v := range listWords {
-			for _, vs := range v {
-				if word == vs {
-					wordDoc[word] += 1
-					break
-				}
+		// 遍历每一篇文章的序号，看是否在该文章中存在
+		for _, Maps := range docMaps {
+			if _, ok := Maps[word]; ok {
+				wordDoc[word]++
+				break
 			}
 		}
 	}
@@ -63,7 +73,7 @@ func IDF(keyWords []string, listWords [][]string) map[string]float64 {
 func WordWeight(wordTf map[string]float64, wordIdf map[string]float64) WordTfIdfs {
 	// 3. TF * IDF
 	var wordidfS WordTfIdfs
-	for word := range wordTf {
+	for word := range wordIdf {
 		var wti WordTfIdf
 		wti.Word = word
 		wti.Value = wordTf[word] * wordIdf[word]
