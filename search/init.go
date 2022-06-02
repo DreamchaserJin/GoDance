@@ -6,6 +6,7 @@ func KeyWord() []string {
 	}
 	return slice
 }
+
 func Title() [][]string {
 	slice := [][]string{
 		{"my", "dog", "has", "flea"},
@@ -17,6 +18,7 @@ func Title() [][]string {
 	}
 	return slice
 }
+
 func Content() [][]string {
 	slice := [][]string{
 		{"my", "dog", "has", "flea", "quit", "help", "please"},

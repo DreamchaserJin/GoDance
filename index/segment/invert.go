@@ -14,6 +14,7 @@ import (
 	"gdindex/tree"
 	"github.com/blevesearch/vellum"
 	"os"
+	"search/weight"
 	"sort"
 	"utils"
 )
@@ -80,16 +81,25 @@ func newInvertFromLocalFile(btdb *tree.BTreeDB, fieldType uint32, fieldName, seg
 
 // 添加文档
 func (ivt *invert) addDocument(docId uint32, contentStr string) error {
-	// TODO 计算权重
 	segmenter := utils.GetGseSegmenter()
 	segResult := segmenter.CutSearch(contentStr, false)
+	// 计算权重
+	tf := weight.TF(segResult)
 	for _, val := range segResult {
-		docIdNode := utils.DocIdNode{Docid: docId, Weight: 0}
+		docIdNode := utils.DocIdNode{Docid: docId, WordTF: tf[val]}
 		ivt.memoryHashMap[val] = append(ivt.memoryHashMap[contentStr], docIdNode)
 	}
 	return nil
 }
 
+//
+//  serialization
+//  @Description:
+//  @receiver ivt
+//  @param segmentName
+//  @param btree
+//  @return error
+//
 func (ivt *invert) serialization(segmentName string, btree *tree.BTreeDB) error {
 	// fst存储文件名
 	fstFileName := fmt.Sprintf("%v%v_invert.fst", segmentName, ivt.fieldName)
