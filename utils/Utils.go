@@ -44,7 +44,7 @@ func (a DocWeightSort) Less(i, j int) bool {
 	return a[i].WordTF < a[j].WordTF
 }
 
-const DOCNODE_SIZE int = 8 //12
+const DOCNODE_SIZE int = 12 //12
 
 // 索引类型说明
 const (
