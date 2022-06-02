@@ -19,7 +19,7 @@ const GODANCEENGINE string = "GoDanceEngine"
 
 type DocIdNode struct {
 	Docid  uint32
-	Weight uint32
+	WordTF float64
 }
 
 type DocIdSort []DocIdNode
@@ -39,9 +39,9 @@ func (a DocWeightSort) Len() int      { return len(a) }
 func (a DocWeightSort) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a DocWeightSort) Less(i, j int) bool {
 	if a[i] == a[j] {
-		return a[i].Weight < a[j].Weight
+		return a[i].WordTF < a[j].WordTF
 	}
-	return a[i].Weight < a[j].Weight
+	return a[i].WordTF < a[j].WordTF
 }
 
 const DOCNODE_SIZE int = 8 //12
@@ -352,7 +352,7 @@ func MergeIds(a []uint32, b []uint32) []uint32 {
 func ComputeWeight(res []DocIdNode, df int, maxdoc uint32) []DocIdNode {
 	idf := math.Log10(float64(maxdoc) / float64(df))
 	for ia := 0; ia < len(res); ia++ {
-		res[ia].Weight = uint32(float64(res[ia].Weight) * idf)
+		res[ia].WordTF = float64(res[ia].WordTF) * idf
 	}
 	return res
 
@@ -361,9 +361,9 @@ func ComputeWeight(res []DocIdNode, df int, maxdoc uint32) []DocIdNode {
 func ComputeTfIdf(res []DocIdNode, a []DocIdNode, df int, maxdoc uint32) []DocIdNode {
 
 	for ia := 0; ia < len(a); ia++ {
-		weight := uint32((float64(a[ia].Weight) / 10000 * math.Log10(float64(maxdoc)/float64(df))) * 1000)
+		wordTF := (float64(a[ia].WordTF) / 10000 * math.Log10(float64(maxdoc)/float64(df))) * 1000
 		docid := a[ia].Docid
-		res = append(res, DocIdNode{Docid: docid, Weight: weight})
+		res = append(res, DocIdNode{Docid: docid, WordTF: wordTF})
 	}
 	return res
 }
@@ -386,7 +386,7 @@ func InteractionWithDf(a []DocIdNode, b []DocIdNode, df int, maxdoc uint32) ([]D
 		if a[ia].Docid == b[ib].Docid {
 			a[lenc] = a[ia]
 
-			a[lenc].Weight += uint32(float64(a[ia].Weight) * idf)
+			a[lenc].WordTF += a[ia].WordTF * idf
 			lenc++
 			ia++
 			ib++
