@@ -303,7 +303,7 @@ func (pfi *profileindex) queryRange(keyMin, keyMax int64) ([]uint32, bool) {
 	if pfi.isMemory == true {
 		for k, v := range pfi.memoryHashMap {
 			if k >= keyMin && k <= keyMax {
-				res = utils.MergeIds(res, v)
+				res = append(res, v...)
 			}
 		}
 		return res, true
@@ -313,11 +313,10 @@ func (pfi *profileindex) queryRange(keyMin, keyMax int64) ([]uint32, bool) {
 			for _, offset := range offsets {
 				lens := pfi.pfiMmap.ReadInt64(int64(offset))
 				IdsArray := pfi.pfiMmap.ReadIdsArray(uint64(offset)+8, int(lens))
-				res = utils.MergeIds(res, IdsArray)
+				res = append(res, IdsArray...)
 			}
 			return res, true
 		}
-
 	}
 	return nil, false
 }

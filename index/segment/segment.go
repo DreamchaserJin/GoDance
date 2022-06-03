@@ -175,7 +175,19 @@ func (seg *Segment) AddDocument(docId uint32, content map[string]string) error {
 // @Return map[string]string 返回的内容
 // @Return bool 是否找到文档
 func (seg *Segment) GetDocument(docId uint32) (map[string]string, bool) {
-	return nil, false
+
+	if docId < seg.StartDocId || docId >= seg.MaxDocId {
+		return nil, false
+	}
+
+	res := make(map[string]string)
+
+	for name, field := range seg.fields {
+		res[name], _ = field.getValue(docId)
+	}
+
+	return res, true
+
 }
 
 // SearchDocIds
@@ -189,11 +201,11 @@ func (seg *Segment) SearchDocIds(query utils.SearchQuery,
 	bitmap *utils.Bitmap, nowDocNodes []utils.DocIdNode) ([]utils.DocIdNode, bool) {
 
 	// 倒排查询的 ID 切片
-	docIds := make([]utils.DocIdNode, 0)
+	var docIds []utils.DocIdNode
 	var ok bool
 
 	if query.Value == "" {
-		return nil, false
+		return nowDocNodes, false
 	} else {
 		docIds, ok = seg.fields[query.FieldName].query(query.Value)
 		if !ok {
@@ -214,9 +226,32 @@ func (seg *Segment) SearchDocIds(query utils.SearchQuery,
 	return nowDocNodes, true
 }
 
-func (seg *Segment) SearchDocFilter(filters utils.SearchFilters, bitmap *utils.Bitmap, nowDocNodes []utils.DocIdNode) ([]utils.DocIdNode, bool) {
+func (seg *Segment) SearchDocFilter(filter utils.SearchFilters, bitmap *utils.Bitmap, nowDocIds []uint32) ([]uint32, bool) {
 
-	return nil, false
+	// 倒排查询的 ID 切片
+	var docIds []uint32
+
+	if _, ok := seg.fields[filter.FieldName]; !ok {
+		return nowDocIds, false
+	}
+
+	docIds, ok := seg.fields[filter.FieldName].queryFilter(filter)
+	if !ok {
+		return nowDocIds, false
+	}
+
+	// bitmap去除被删除的文档
+	if bitmap != nil {
+		for _, docId := range docIds {
+			if bitmap.GetBit(uint64(docId)) == 0 {
+				nowDocIds = append(nowDocIds, docId)
+			}
+		}
+		return nowDocIds, true
+	}
+
+	return nowDocIds, true
+
 }
 
 // Serialization

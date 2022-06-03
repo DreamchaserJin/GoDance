@@ -175,6 +175,39 @@ func (f *Field) query(key string) ([]utils.DocIdNode, bool) {
 	return f.ivt.queryTerm(fmt.Sprintf("%v", key))
 }
 
+func (f *Field) queryFilter(filter utils.SearchFilters) ([]uint32, bool) {
+	if f.pfi == nil {
+		return nil, false
+	}
+
+	var start, end int64
+
+	switch filter.Type {
+	case utils.FILT_EQ:
+		start = filter.Start
+		end = filter.Start
+	case utils.FILT_RANGE:
+		start = filter.Start
+		end = filter.End
+	case utils.FILT_LESS:
+		start = 0
+		end = filter.End
+	case utils.FILT_OVER:
+		start = filter.Start
+		end = 0xFFFFFFFFFF
+	}
+
+	return f.pfi.queryRange(start, end)
+}
+
+func (f *Field) getValue(docId uint32) (string, bool) {
+	if docId >= f.startDocId && docId < f.maxDocId && f.pfl != nil {
+		return f.pfl.getValue(docId - f.startDocId)
+	}
+
+	return "", false
+}
+
 func (f *Field) serialization(segmentName string, btdb *tree.BTreeDB) error {
 
 	if f.pfl != nil {
