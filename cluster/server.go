@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"configs"
+	"context"
 	"github.com/smallnest/rpcx/server"
 	"math/rand"
 	"sync"
@@ -38,7 +39,7 @@ func init() {
 			//如果超时没收到心跳
 			if time.Now().Sub(heartBeat).Milliseconds() > int64(randomTimeOut) {
 				//如果是候选节点则开始选举自己为主节点
-				if State.selfState.isCandidate {
+				if State.selfState.isMaster {
 					tryElection()
 				} else {
 					tryJoin()
@@ -52,6 +53,8 @@ func init() {
 
 type Server struct {
 }
+
+//todo 修改version为logId
 type voteArgs struct {
 	//任期
 	term int64
@@ -65,7 +68,7 @@ type voteReply struct {
 }
 
 // RequestVote 请求投票，候选节点通过rpc远程调用从节点的拉票方法来获取票数
-func (s *Server) RequestVote(r *voteArgs, res *voteReply) error {
+func (s *Server) RequestVote(ctx context.Context, r *voteArgs, res *voteReply) error {
 	//重置心跳
 	heartBeat = time.Now()
 	defer mutex.RUnlock()
@@ -88,44 +91,39 @@ func (s *Server) RequestVote(r *voteArgs, res *voteReply) error {
 	return nil
 }
 
-// ConfirmVote 拉票请求的第二阶段，确定选举，此时说明主节点获得大多数选票，此种情况会调用所有已知节点的rpc
-//func (c *Server) ConfirmVote(r *voteArgs, res *voteReply) error {
-//	clusterState := cluster.state.clusterState
-//	//当任期大于当前主节点的term时，才会转移
-//	if r.term > clusterState.term {
-//		cluster.state.Mutex.Lock()
-//		cluster.state.selfState.masterId = r.id
-//		//重置节点
-//		heartBeat = time.Now()
-//		cluster.state.Mutex.Unlock()
-//		res.success = true
-//	}
-//	return nil
-//}
-// heartReply 探活请求（日志请求）
-type heartReply struct {
-	//是否接受领导
-	success bool
+type heartArgs struct {
 	//latest log id(committed)
 	logEntryId uint64
-	//节点状态
-	state CMState
-	//接受到探活请求的任期
+	//任期
 	term int64
+	//元数据
+	version int64
+	//nodeID
+	id int64
 }
 
-type commonReply struct {
+// HeartReply 探活请求（日志增加请求）
+type HeartReply struct {
+	//是否承认该节点
 	success bool
+	//接受到探活请求的任期
+	Term int64
+	//节点状态
+	State CMState
+	//上一次提交的日志id
+	lastCommitted uint64
+	//最近一次增加的日志id
+	latestLog uint64
 }
 
 // HeatBeat 探活请求，由主节点来调用此RPC方法
-func (s *Server) HeatBeat(r *voteArgs, res *heartReply) error {
+//同时此Rpc调用也负责日志的同步
+func (s *Server) HeatBeat(ctx context.Context, r *heartArgs, res *HeartReply) error {
 	self := State.selfState
-	res.state = State.selfState.state
+	res.State = State.selfState.state
 	//如果发现小于自己任期时，拒绝承认该节点
 	if self.masterId != r.id && r.term < self.term {
-		res.success = false
-		res.term = State.selfState.term
+		res.Term = State.selfState.term
 		return nil
 	}
 	//当发现探活请求的主节点和自己认为的主节点不一致且任期比自己的大时，切换主节点
@@ -138,36 +136,50 @@ func (s *Server) HeatBeat(r *voteArgs, res *heartReply) error {
 		//free up space，trigger GC
 		clients = nil
 	}
-	res.success = true
+	res.latestLog = latestLog
+	res.lastCommitted = latestCommitted
 	heartBeat = time.Now()
 	return nil
 }
 
-// AppendEntries RPC called by leader
-func (s *Server) AppendEntries(logEntry *logEntry, reply *commonReply) error {
-	appendSelfLog(logEntry)
-	reply.success = true
+// AppendEntry RPC called by leader
+func (s *Server) AppendEntry(ctx context.Context, logEntry *LogEntry, reply *CommonReply) error {
+	AppendSelfLog(logEntry)
+	reply.Success = true
+	return nil
+}
+
+type EntriesArgs struct {
+	CommittedIds []uint64
+	IncreasedLog []LogEntry
+}
+
+// AppendEntries 由Leader来调用，用于同步Leader和Flower日志的一致性
+func (s *Server) AppendEntries(ctx context.Context, args *EntriesArgs, reply *CommonReply) error {
+	for _, e := range args.IncreasedLog {
+		AppendSelfLog(&e)
+	}
+	for _, id := range args.CommittedIds {
+		CommitLog(id)
+	}
+	reply.Success = true
 	return nil
 }
 
 /**
 JoinNode Rpc
 */
-func (s *Server) tryJoin(n *node, r *commonReply) error {
+func (s *Server) tryJoin(ctx context.Context, n *node, r *CommonReply) error {
 	if State.selfState.state != Leader {
-		r.success = false
+		r.Success = false
 		return nil
 	}
-	//1.send log to other nodes by AppendEntries
-	entry := NewNodeAddLog(n)
-	//2.appendEntry
-	success := appendClusterLog(entry)
-	//3.load log to state when success
-	if success {
-		entry.load2State()
-		r.success = true
-		return nil
-	}
-	r.success = false
+	success := AddNode(n)
+	r.Success = success
 	return nil
+}
+
+// CommonReply 较为通用的应答
+type CommonReply struct {
+	Success bool
 }

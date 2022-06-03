@@ -28,4 +28,10 @@ type ClusterConfig struct {
 	ElectionTimeMin int
 	//竞选所需的最小票数
 	ElectionMin uint32
+	//是否是数据节点
+	Data bool
+	//是否是候选主节点
+	Master bool
+	//种子节点ip
+	SeedNodes []string
 }

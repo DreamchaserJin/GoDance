@@ -24,6 +24,8 @@ type selfState struct {
 	address string
 	//节点参数
 	attributes map[string]string
+	//Address of theed node(ip)
+	seedNodes []string
 	//当前节点状态
 	state CMState
 	//当前节点认为的主节点Id
@@ -31,9 +33,9 @@ type selfState struct {
 	//任期
 	term int64
 	//是否是数据节点
-	isDataNode bool
-	//是否是候选主节点
-	isCandidate bool
+	isData bool
+	//是否是主节点（有资格成为Leader）
+	isMaster bool
 	//内存负载率
 	loadRate float32
 }

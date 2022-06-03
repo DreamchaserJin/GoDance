@@ -25,7 +25,7 @@ func tryElection() {
 	//更新自身状态为候选者
 	State.selfState.state = Candidate
 	config := configs.Config.Cluster
-	candidateNodes := State.clusterState.Nodes.candidateNodes
+	candidateNodes := State.clusterState.Nodes.masterNodes
 
 	clients = make([]*nodeClient, len(candidateNodes))
 	for _, v := range candidateNodes {
@@ -79,14 +79,14 @@ func tryElection() {
 				}
 				//add the number of complete request ,notice the order of CAS here，cnum must behind of vote
 				atomic.AddUint32(&cnum, 1)
-				//When the votes are greater than the majority, or when the immediate failure is too many to reach the majority
+				//When the votes are greater than the majority, or when the immediate failure isMasterNode too many to reach the majority
 				if vote >= configs.Config.Cluster.ElectionMin ||
-					cnum-vote > uint32(len(State.clusterState.Nodes.candidateNodes))-configs.Config.Cluster.ElectionMin {
+					cnum-vote > uint32(len(State.clusterState.Nodes.masterNodes))-configs.Config.Cluster.ElectionMin {
 					ch <- 1
 				}
 			}()
 		}
-		//goroutine will block until condition is reached
+		//goroutine will block until condition isMasterNode reached
 		<-ch
 		//如果大于配置的“大多数”，且身份依旧是候选者（即在这期间没有收到过其他任期更高的心跳）
 		if vote >= configs.Config.Cluster.ElectionMin && State.selfState.state == Candidate {
@@ -108,8 +108,8 @@ func heatBeat() {
 	min := configs.Config.Cluster.HeartBeatMin
 	nodes := State.clusterState.Nodes.nodes
 	for _, n := range nodes {
-		//skip Candidate ,because the node is in clients
-		if n.isCandidate {
+		//skip Candidate ,because the node isMasterNode in clients
+		if n.isMasterNode {
 			continue
 		}
 		c := &nodeClient{
@@ -126,22 +126,39 @@ func heatBeat() {
 		c := clients[i]
 		//为每个节点开启一个协程,定时发送心跳
 		go func() {
-			var res voteReply
+			var reply HeartReply
 			for {
 				//当自身不是领导者时，不再发送
 				if State.selfState.state != Leader {
 					break
 				}
-				r := voteArgs{
+				args := heartArgs{
 					term:    State.selfState.term,
 					version: State.clusterState.version,
 					id:      State.selfState.nodeId,
 				}
-				// rpc调用
-				call := c.client.Go(context.Background(), "RaftServe", "HeartBeat", &r, &res, nil)
-				//todo delete node from cluster
-				if call.Error != nil {
-
+				// rpc同步调用
+				err := c.client.Call(context.Background(), "RaftServe", "HeartBeat", &args, &reply)
+				// 此时判定为节点故障，摘除该节点
+				if err != nil {
+					DeleteNode(c.node.nodeId)
+				}
+				//TODO 日志同步
+				if reply.success {
+					//如果发现follower日志不一致，则进行RPC调用进行同步
+					if reply.latestLog != latestLog || reply.lastCommitted != latestCommitted {
+						cids, ids := Diff(reply.lastCommitted, reply.latestLog)
+						entriesArgs := EntriesArgs{
+							CommittedIds: cids,
+							IncreasedLog: ids,
+						}
+						var entriesReply CommonReply
+						// rpc同步调用
+						err := c.client.Call(context.Background(), "RaftServe", "AppendEntries", &entriesArgs, &entriesReply)
+						if err != nil {
+							log.Fatal("日志同步失败！")
+						}
+					}
 				}
 				time.Sleep(time.Duration(min / 2))
 			}

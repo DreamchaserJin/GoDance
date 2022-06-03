@@ -3,15 +3,15 @@ module gdindex
 go 1.18
 
 replace (
-	utils => ../utils
 	search => ../search
+	utils => ../utils
 )
 
 require (
 	github.com/blevesearch/vellum v1.0.7
 	github.com/boltdb/bolt v1.3.1
-	utils v0.0.0
 	search v0.0.0
+	utils v0.0.0
 )
 
 require (
