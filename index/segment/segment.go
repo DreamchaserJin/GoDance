@@ -7,12 +7,12 @@
 package segment
 
 import (
+	"GoDance/index/tree"
+	"GoDance/utils"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gdindex/tree"
 	"os"
-	"utils"
 )
 
 type Segment struct {

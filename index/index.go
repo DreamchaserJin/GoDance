@@ -7,16 +7,16 @@
 package gdindex
 
 import (
+	"GoDance/index/segment"
+	"GoDance/index/tree"
+	"GoDance/utils"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gdindex/segment"
-	"gdindex/tree"
 	"os"
 	"strconv"
 	"sync"
-	"utils"
 )
 
 // Index 索引类
