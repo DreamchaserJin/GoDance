@@ -1,20 +1,54 @@
 package cluster
 
 import (
+	"GoDance/configs"
+	"log"
 	"sync"
+	"time"
 )
 
 var (
 	// State 当前的状态信息，包括集群状态和自身节点的状态,可以理解为raft算法里的状态机
-	State = &state{}
+	State state
 )
+
+func init() {
+	config := configs.Config.Cluster
+	ip, err := GetOutBoundIP()
+	if err != nil {
+		log.Fatal("启动失败，原因：获取本地IP失败")
+	}
+	State = state{
+		selfState: selfState{
+			nodeId:     time.Now().UnixNano(),
+			nodeName:   ip,
+			address:    ip,
+			attributes: nil,
+			seedNodes:  config.SeedNodes,
+			state:      Follower,
+			masterId:   0,
+			term:       0,
+			isData:     config.Data,
+			isMaster:   config.Master,
+		},
+	}
+	//todo 向种子节点发起请求，查看是否是否有主节点，同时获取别人的集群状态
+	tryJoin()
+
+}
 
 type state struct {
 	clusterState clusterState
 	selfState    selfState
 	// Mutex 用于控制读写
-	mutex sync.RWMutex
+	stateMutex sync.RWMutex
 }
+
+//获取当前主节点IP地址
+func (state *state) getMasterIP() string {
+	return state.clusterState.Nodes.nodes[state.clusterState.MasterId].address
+}
+
 type selfState struct {
 	//节点id
 	nodeId int64

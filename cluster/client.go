@@ -40,7 +40,7 @@ func tryElection() {
 		err := c.client.Connect("tcp", v.address+":"+Port)
 		//todo 这里需要重试的逻辑
 		if err != nil {
-			log.Fatalf("failed to connect: %v", err)
+			log.Printf("failed to connect: %v", err)
 		}
 		clients = append(clients, c)
 	}
@@ -48,9 +48,10 @@ func tryElection() {
 	for {
 		State.selfState.term += 1
 		args := voteArgs{
-			term:    State.selfState.term,
-			version: State.clusterState.version,
-			id:      State.selfState.nodeId,
+			term:        State.selfState.term,
+			logId:       latestLog,
+			committedId: latestCommitted,
+			id:          State.selfState.nodeId,
 		}
 
 		var (
@@ -71,7 +72,7 @@ func tryElection() {
 			//异步处理返回值
 			go func() {
 				if call.Error != nil {
-					log.Fatal("arith error:", call.Error)
+					log.Println("arith error:", call.Error)
 				}
 				//add the vote by CAS
 				if reply.success {
@@ -118,7 +119,7 @@ func heatBeat() {
 		c.client = NewClient(DefaultOption)
 		err := c.client.Connect("tcp", n.address+":"+Port)
 		if err != nil {
-			log.Fatal("heartBeat client init failed,dialing:", err)
+			log.Printf("heartBeat client init failed,dialing:", err)
 		}
 		clients = append(clients, c)
 	}
@@ -143,7 +144,7 @@ func heatBeat() {
 				if err != nil {
 					DeleteNode(c.node.nodeId)
 				}
-				//TODO 日志同步
+				//TODO 这里可以修改为当日志差异过大直接进行state复制
 				if reply.success {
 					//如果发现follower日志不一致，则进行RPC调用进行同步
 					if reply.latestLog != latestLog || reply.lastCommitted != latestCommitted {
@@ -156,7 +157,7 @@ func heatBeat() {
 						// rpc同步调用
 						err := c.client.Call(context.Background(), "RaftServe", "AppendEntries", &entriesArgs, &entriesReply)
 						if err != nil {
-							log.Fatal("日志同步失败！")
+							log.Println("日志同步失败！")
 						}
 					}
 				}
@@ -168,5 +169,59 @@ func heatBeat() {
 
 //尝试加入节点
 func tryJoin() {
+	var (
+		args  QueryArgs
+		reply QueryReply
+		cs    map[string]*Client
+	)
+	flag := true
+
+	for flag {
+		for _, s := range configs.Config.Cluster.SeedNodes {
+			//rpc调用种子节点，尝试获取当前Leader
+			if _, ok := cs[s]; !ok {
+				c := NewClient(DefaultOption)
+				err := c.Connect("tcp", s+":"+Port)
+				if err != nil {
+					log.Println("failed to connect: "+s, err)
+					continue
+				}
+				cs[s] = c
+			}
+			err := cs[s].Call(context.Background(), "RaftServe", "SeedQuery", &args, &reply)
+			if err != nil {
+				log.Println("failed to call SeedQuery rpc: ", err)
+				continue
+			}
+			s := State.selfState
+			//如果存在Leader，则会尝试加入Leader
+			if reply.LeaderIp != "" {
+				node := node{
+					term:         0,
+					nodeName:     s.nodeName,
+					nodeId:       s.nodeId,
+					address:      s.address,
+					attributes:   nil,
+					state:        s.state,
+					isDataNode:   s.isData,
+					isMasterNode: s.isMaster,
+				}
+				r := CommonReply{}
+				c := NewClient(DefaultOption)
+				err := c.Connect("tcp", reply.LeaderIp+":"+Port)
+				if err != nil {
+					log.Println("failed to connect: "+reply.LeaderIp, err)
+					continue
+				}
+				err = c.Call(context.Background(), "RaftServe", "JoinToLeader", &node, &r)
+				if err != nil || !r.Success {
+					log.Println("failed to join Leader", err)
+					continue
+				}
+				flag = false
+				break
+			}
+		}
+	}
 
 }

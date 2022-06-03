@@ -6,10 +6,12 @@ type CMState int
 const (
 	// Leader 领导者
 	Leader CMState = iota
-	// Candidate 候选者
+	// Candidate 候选者（参与竞选）
 	Candidate
 	// Follower 跟随者
 	Follower
+	// NoLeader 集群处于无领导者状态或者处于等待竞选状态
+	NoLeader
 	// Dead 宕机状态
 	Dead
 )
@@ -18,7 +20,7 @@ type node struct {
 	//任期
 	term int64
 	//版本id
-	version int64
+	//version int64
 	//节点名称
 	nodeName string
 	//节点id

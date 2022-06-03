@@ -16,7 +16,7 @@ var (
 	logs []LogEntry
 	//日志id到数组索引下标的映射
 	id2index map[uint64]int
-	//上一次提交的日志id
+	//上一次提交的日志id，当提交日志id一样时，意味着state肯定是一致的
 	latestCommitted uint64
 	//最近一次增加的日志id
 	latestLog uint64
@@ -53,16 +53,19 @@ type LogEntry struct {
 }
 
 // AddNode  增加一个节点，这里的逻辑保证Leader节点中每一条记录都是最终的
+//这里只能由领导者调用
 func AddNode(n *node) bool {
 	return appendClusterLog(NodeAdd, *n)
 }
 
 // DeleteNode  删除一个节点
+// 这里只能由领导者调用
 func DeleteNode(nodeId int64) bool {
 	return appendClusterLog(NodeDelete, nodeId)
 }
 
 // AppendSelfLog 自身节点增加一条日志记录
+// 从节点自身调用
 func AppendSelfLog(entry *LogEntry) {
 	logMutex.Lock()
 	//入股不存在才添加，保证幂等性
@@ -74,9 +77,9 @@ func AppendSelfLog(entry *LogEntry) {
 
 // CommitLog 根据日志id提交日志到状态机中
 func CommitLog(id uint64) {
-	mutex.Lock()
+	logMutex.Lock()
 	logs[id2index[id]].load2State()
-	mutex.Unlock()
+	logMutex.Unlock()
 }
 
 // Diff 用于比较当前节点和传入参数之前的日志，并返回对应的差异
@@ -116,13 +119,13 @@ func (e *LogEntry) load2State() {
 	case NodeAdd:
 		n, ok := (e.Object).(node)
 		if ok {
-			log.Fatal("LogEntry Conversion failed")
+			log.Println("LogEntry Conversion failed")
 		}
 		State.clusterState.addNode(&n)
 	case NodeDelete:
 		id, ok := (e.Object).(int64)
 		if ok {
-			log.Fatal("LogEntry Conversion failed")
+			log.Println("LogEntry Conversion failed")
 		}
 		State.clusterState.deleteNode(id)
 	case ShardAdd:
@@ -155,7 +158,7 @@ func appendClusterLog(op operation, object any) bool {
 		num uint32 = 0
 		//number of done
 		dnum uint32 = 0
-		//mutex for controlling log replication results
+		//controlling log replication results
 		//todo there may be resource leakage here
 		ch chan int
 	)
@@ -166,7 +169,7 @@ func appendClusterLog(op operation, object any) bool {
 		//异步处理返回值
 		go func() {
 			if call.Error != nil {
-				log.Fatal("arith error:", call.Error)
+				log.Println("arith error:", call.Error)
 			}
 			if c.node.isMasterNode {
 				//add the vote by CAS

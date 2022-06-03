@@ -19,7 +19,7 @@ var (
 	//上一次心跳请求的时间
 	heartBeat = time.Now()
 	//读写锁，用于同步
-	mutex sync.RWMutex
+	serverMutex sync.RWMutex
 )
 
 func init() {
@@ -58,8 +58,10 @@ type Server struct {
 type voteArgs struct {
 	//任期
 	term int64
-	//元数据
-	version int64
+	//最新增加的日志id
+	logId uint64
+	//最新提交日志ID
+	committedId uint64
 	//nodeID
 	id int64
 }
@@ -71,18 +73,17 @@ type voteReply struct {
 func (s *Server) RequestVote(ctx context.Context, r *voteArgs, res *voteReply) error {
 	//重置心跳
 	heartBeat = time.Now()
-	defer mutex.RUnlock()
-	mutex.RLock()
-	state := State.clusterState
+	defer serverMutex.RUnlock()
+	serverMutex.RLock()
 	//之前相同任期内投过票的节点也会投票，此举是为了保证幂等性
 	if votedNodes[r.id] == r.term {
 		res.success = true
 		return nil
 	}
-	//数据版本大于等于自身且超过自身投过的任期时，才会支持该节点
-	if r.version >= state.version && r.term > lastTerm {
-		defer mutex.Unlock()
-		mutex.Lock()
+	//日志完整度大于等于自身且超过自身投过的任期时，才会支持该节点
+	if r.logId >= latestLog && r.committedId > latestCommitted && r.term > lastTerm {
+		defer serverMutex.Unlock()
+		serverMutex.Lock()
 		lastTerm = r.term
 		votedNodes[r.id] = r.term
 		res.success = true
@@ -142,8 +143,14 @@ func (s *Server) HeatBeat(ctx context.Context, r *heartArgs, res *HeartReply) er
 	return nil
 }
 
+type EntryArgs struct {
+	preNode int
+	LogEntry
+}
+
 // AppendEntry RPC called by leader
 func (s *Server) AppendEntry(ctx context.Context, logEntry *LogEntry, reply *CommonReply) error {
+
 	AppendSelfLog(logEntry)
 	reply.Success = true
 	return nil
@@ -167,14 +174,16 @@ func (s *Server) AppendEntries(ctx context.Context, args *EntriesArgs, reply *Co
 }
 
 /**
-JoinNode Rpc
+JoinToLeader Rpc
+由跟随者来调用
 */
-func (s *Server) tryJoin(ctx context.Context, n *node, r *CommonReply) error {
+func (s *Server) JoinToLeader(ctx context.Context, n *node, r *CommonReply) error {
 	if State.selfState.state != Leader {
 		r.Success = false
 		return nil
 	}
 	success := AddNode(n)
+	//同时这里还要增加对应client
 	r.Success = success
 	return nil
 }
@@ -182,4 +191,19 @@ func (s *Server) tryJoin(ctx context.Context, n *node, r *CommonReply) error {
 // CommonReply 较为通用的应答
 type CommonReply struct {
 	Success bool
+}
+type QueryArgs struct {
+}
+type QueryReply struct {
+	LeaderIp string
+}
+
+// SeedQuery 种子节点查询rpc，由找不到主节点的跟随者或者刚启动的节点调用，返回当前集群的主节点
+func SeedQuery(ctx context.Context, args *QueryArgs, reply *QueryReply) {
+	//若当前节点暂时没有Leader
+	if State.selfState.state == Candidate || State.selfState.state == NoLeader {
+		reply.LeaderIp = ""
+	} else {
+		reply.LeaderIp = State.getMasterIP()
+	}
 }
