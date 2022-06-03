@@ -1,12 +1,12 @@
 package test
 
 import (
+	gdindex "GoDance/index"
+	"GoDance/index/segment"
+	"GoDance/utils"
 	"fmt"
-	"gdindex"
-	"gdindex/segment"
 	"testing"
 	"time"
-	"utils"
 )
 
 func TestCreateIndex(t *testing.T) {
