@@ -7,12 +7,12 @@
 package segment
 
 import (
+	"GoDance/utils"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
 	"strconv"
-	"utils"
 )
 
 type profile struct {

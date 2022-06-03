@@ -1,7 +1,7 @@
 package cluster
 
 import (
-	"configs"
+	"GoDance/configs"
 	"context"
 	"log"
 	"sync"

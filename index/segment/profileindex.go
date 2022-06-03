@@ -7,14 +7,14 @@
 package segment
 
 import (
+	"GoDance/index/tree"
+	"GoDance/utils"
 	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"gdindex/tree"
 	"os"
 	"strconv"
-	"utils"
 )
 
 type profileindex struct {

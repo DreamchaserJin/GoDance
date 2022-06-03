@@ -7,16 +7,16 @@
 package segment
 
 import (
+	"GoDance/index/tree"
+	"GoDance/search/weight"
+	"GoDance/utils"
 	"bytes"
 	"container/heap"
 	"encoding/binary"
 	"fmt"
-	"gdindex/tree"
 	"github.com/blevesearch/vellum"
 	"os"
-	"search/weight"
 	"sort"
-	"utils"
 )
 
 type invert struct {

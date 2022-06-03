@@ -7,10 +7,10 @@
 package segment
 
 import (
+	"GoDance/index/tree"
+	"GoDance/utils"
 	"errors"
 	"fmt"
-	"gdindex/tree"
-	"utils"
 )
 
 type SimpleFieldInfo struct {
