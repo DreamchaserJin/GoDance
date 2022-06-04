@@ -89,3 +89,6 @@ fabric.properties
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
+utils/csv.go
+test/data/
+test/FalconSearcher.log

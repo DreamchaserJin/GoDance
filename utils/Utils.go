@@ -19,7 +19,7 @@ const IDX_ROOT_PATH string = "./data/"
 const GODANCEENGINE string = "GoDanceEngine"
 
 type DocIdNode struct {
-	Docid  uint32
+	Docid  uint64
 	WordTF float64
 }
 
@@ -45,6 +45,13 @@ func (a DocWeightSort) Less(i, j int) bool {
 	return CompareFloat64(a[i].WordTF, a[j].WordTF) < 0
 }
 
+//
+//  CompareFloat64
+//  @Description: 比较两个float64类型的数。如果两值之差小于10的-15次方，则会认为它们相等。如果a大于b,则返回1。a小于b,则返回-1。
+//  @param a
+//  @param b
+//  @return int
+//
 func CompareFloat64(a, b float64) int {
 	if math.Abs(a-b) < 1e-15 {
 		return 0
@@ -56,7 +63,7 @@ func CompareFloat64(a, b float64) int {
 	}
 }
 
-const DOCNODE_SIZE int = 12 //12
+const DOCNODE_SIZE int = 16
 
 // 索引类型说明
 const (

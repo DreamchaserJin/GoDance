@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"container/heap"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"github.com/blevesearch/vellum"
 	"os"
@@ -20,7 +21,7 @@ import (
 )
 
 type invert struct {
-	curDocId      uint32
+	curDocId      uint64
 	isMemory      bool
 	fieldType     uint32
 	fieldName     string
@@ -43,7 +44,7 @@ type invert struct {
 //	return ivt
 //}
 
-func newEmptyInvert(fieldType uint32, startDocId uint32, fieldName string, logger *utils.Log4FE) *invert {
+func newEmptyInvert(fieldType uint32, startDocId uint64, fieldName string, logger *utils.Log4FE) *invert {
 	ivt := &invert{
 		curDocId:      startDocId,
 		isMemory:      true,
@@ -56,7 +57,7 @@ func newEmptyInvert(fieldType uint32, startDocId uint32, fieldName string, logge
 	return ivt
 }
 
-func newInvertFromLocalFile(btdb *tree.BTreeDB, fieldType uint32, fieldName, segmentName string,
+func newInvertFromLocalFile(fieldType uint32, fieldName, segmentName string,
 	idxMmap *utils.Mmap, logger *utils.Log4FE) *invert {
 	ivt := &invert{
 		isMemory:  false,
@@ -65,7 +66,6 @@ func newInvertFromLocalFile(btdb *tree.BTreeDB, fieldType uint32, fieldName, seg
 		idxMmap:   idxMmap,
 		Logger:    logger,
 		fst:       nil,
-		//btree:     btdb,
 	}
 	// 从文件中读取fst文件
 	fst, err := vellum.Open(fmt.Sprintf("%v%v_invert.fst", segmentName, fieldName))
@@ -80,11 +80,23 @@ func newInvertFromLocalFile(btdb *tree.BTreeDB, fieldType uint32, fieldName, seg
 }
 
 // 添加文档
-func (ivt *invert) addDocument(docId uint32, contentStr string) error {
-	segmenter := utils.GetGseSegmenter()
-	segResult := segmenter.CutSearch(contentStr, false)
+func (ivt *invert) addDocument(docId uint64, contentStr string) error {
+	var segResult []string
+	// 判断文本类型，根据类型不同选择不同的分词策略
+	if ivt.fieldType == utils.IDX_TYPE_STRING {
+		segResult = []string{contentStr}
+	} else if ivt.fieldType == utils.IDX_TYPE_STRING_SEG {
+		segmenter := utils.GetGseSegmenter()
+		segResult = segmenter.CutSearch(contentStr, false)
+	} else {
+		return errors.New("invert fieldType is not exists")
+	}
 	// 计算权重
 	tf := weight.TF(segResult)
+	// memoryHashMap判空
+	if ivt.memoryHashMap == nil {
+		ivt.memoryHashMap = make(map[string][]utils.DocIdNode)
+	}
 	for _, val := range segResult {
 		docIdNode := utils.DocIdNode{Docid: docId, WordTF: tf[val]}
 		ivt.memoryHashMap[val] = append(ivt.memoryHashMap[contentStr], docIdNode)
@@ -118,13 +130,20 @@ func (ivt *invert) serialization(segmentName string, btree *tree.BTreeDB) error 
 		return err
 	}
 	defer idxFd.Close()
+
 	// 生成fst builder用于批量写入文件
 	builder, err := vellum.New(fstFd, nil)
 	if err != nil {
 		return err
 	}
 	// 保证builder正常关闭, 否则无法写入文件
-	defer builder.Close()
+	defer func(builder *vellum.Builder) {
+		err := builder.Close()
+		if err != nil {
+
+		}
+	}(builder)
+
 	leafNodes := make(map[string]uint64)
 	nowOffset := uint64(0)
 	// 因为插入fst的key必须是有序的,所以需要记录memoryHashMap中的key值，以供排序
@@ -452,7 +471,6 @@ func (ivt *invert) mergeFSTIteratorList(segmentName string, mergeFSTNodes []*Fst
 //}
 
 func (ivt *invert) queryTerm(keyStr string) ([]utils.DocIdNode, bool) {
-	// TODO 添加分词逻辑
 
 	if ivt.isMemory == true {
 		docIds, ok := ivt.memoryHashMap[keyStr]

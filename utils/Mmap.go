@@ -1,7 +1,7 @@
 /*****************************************************************************
  *  file name : Mmap.go
- *  author : Wu Yinghao
- *  email  : wyh817@gmail.com
+ *  author : iceberg
+ *  email  : iceberg_iceberg@163.com
  *
  *  file description : mmap底层封装
  *
@@ -10,7 +10,6 @@
 package utils
 
 import (
-	//"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
