@@ -121,10 +121,12 @@ func (seg *Segment) AddField(newField SimpleFieldInfo) error {
 // @Param fieldName 字段名
 // @Return error 任何error
 func (seg *Segment) DeleteField(fieldName string) error {
+	// 如果段中没有需要删除的字段
 	if _, ok := seg.FieldInfos[fieldName]; !ok {
 		seg.Logger.Warn("[WARN] Segment doesn't have field [%v]", fieldName)
 		return errors.New("segment doesn't has field")
 	}
+	// 如果段已经存在，并且段中有数据，则段不可更改
 	if seg.isMemory && !seg.IsEmpty() {
 		seg.Logger.Warn("[WARN] Segment has field [%v]", fieldName)
 		return errors.New("segment can't delete field")

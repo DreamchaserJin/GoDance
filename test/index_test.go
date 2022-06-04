@@ -34,7 +34,7 @@ func TestCreateIndex(t *testing.T) {
 	err = index.AddField(field2)
 	err = index.AddField(field3)
 	// 删除索引
-	err = index.DeleteField("year")
+	// err = index.DeleteField("year")
 }
 
 func TestDeleteField(t *testing.T) {
@@ -51,26 +51,21 @@ func TestDeleteField(t *testing.T) {
 }
 
 func TestAddDocument(t *testing.T) {
-	utils.GSegmenter = utils.NewSegmenter("/home/hz/GoProject/GoDanceEngine/GoDance/test/dictionary/dict.txt")
+	//utils.GSegmenter = utils.NewSegmenter("/home/hz/GoProject/GoDanceEngine/GoDance/test/dictionary/dict.txt")
 	logger, err := utils.New("GoDanceTest")
-	if err != nil {
-		fmt.Printf("err happen: %v", err)
-	}
-	index := gdindex.NewIndexFromLocalFile("wechat", utils.IDX_ROOT_PATH, logger)
+	//if err != nil {
+	//	fmt.Printf("err happen: %v", err)
+	//}
+	index := gdindex.NewIndexFromLocalFile("gk", utils.IDX_ROOT_PATH, logger)
 
 	content := make(map[string]string, 0)
-	content["content"] = "南昌大学信息工程学院"
-	content["id"] = "1"
-	content["text"] = "111"
-	index.AddDocument(content)
-	content["content"] = "北京大学和清华大学"
-	content["id"] = "2"
-	content["text"] = "222"
-	index.AddDocument(content)
-	content["content"] = "字节跳动抖音部门"
-	content["id"] = "3"
-	content["text"] = "333"
-	index.AddDocument(content)
+	csvTable := utils.LoadCsvFile("/home/iceberg/桌面/高考作文1.csv", 1)
+	for _, val := range csvTable.Records {
+		content["year"] = val.GetString("year")
+		content["region"] = val.GetString("region")
+		content["title"] = val.GetString("title")
+		index.AddDocument(content)
+	}
 
 	err = index.SyncMemorySegment()
 	if err != nil {
@@ -94,7 +89,6 @@ func TestSearch(t *testing.T) {
 	q1 := utils.SearchQuery{
 		FieldName: "content",
 		Value:     "南昌",
-		Type:      utils.IDX_TYPE_STRING_SEG,
 	}
 
 	//q2 := utils.SearchQuery{

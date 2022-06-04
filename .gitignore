@@ -91,4 +91,4 @@ fabric.properties
 
 utils/csv.go
 test/data/
-test/FalconSearcher.log
+test/*.log

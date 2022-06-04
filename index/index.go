@@ -504,7 +504,7 @@ func (idx *Index) MergeSegments(start int) error {
 	}
 
 	tmpSegment = segment.NewSegmentFromLocalFile(segmentName, idx.Logger)
-
+	// todo 合并段时好像并没有删除段对应的文件
 	if startIdx > 0 {
 		idx.segments = idx.segments[:startIdx]
 		idx.SegmentNames = idx.SegmentNames[:startIdx]
@@ -559,6 +559,60 @@ func (idx *Index) Close() error {
 
 }
 
+// SearchDocIds
+// @Description 最基本的搜索方法
+// @Param queries 搜索结构体切片，定义本次搜索需要查找的内容
+// @Param filters 过滤结构体切片，定义本次搜索需要过滤的内容
+// @Return []utils.DocIdNode 查找的文档 id 列表
+// @Return bool 是否查找到结果
+// todo 考虑放引擎层
+//func (idx *Index) SearchDocIds(queries []utils.SearchQuery, filters []utils.SearchFilters) ([]utils.DocIdNode, bool) {
+//
+//	// 最终返回的结果
+//	docIds := make([]utils.DocIdNode, 0)
+//	filterDocIds := make([]utils.DocIdNode, 0)
+//
+//	if len(queries) == 0 {
+//		return nil, true
+//	}
+//
+//	if len(queries) >= 1 {
+//		for _, seg := range idx.segments {
+//			docIds, _ = seg.SearchDocIds(queries[0], idx.bitmap, docIds)
+//		}
+//	}
+//
+//	if len(queries) == 1 {
+//		if filters == nil || len(filters) == 0 {
+//			return docIds, true
+//		}
+//
+//		if len(filters) == 1 {
+//			for _, seg := range idx.segments {
+//				filterDocIds, _ = seg.SearchDocFilter(filters[0], idx.bitmap, filterDocIds)
+//			}
+//			docIds, _ = utils.Interaction(docIds, filterDocIds)
+//		}
+//
+//		return docIds, true
+//	}
+//
+//	for _, query := range queries[1:] {
+//		subDocIds := make([]utils.DocIdNode, 0)
+//		for _, seg := range idx.segments {
+//			subDocIds, _ = seg.SearchDocIds(query, idx.bitmap, subDocIds)
+//		}
+//		docIds, _ = utils.InteractionWithDf(docIds, subDocIds, len(subDocIds), idx.MaxDocId)
+//	}
+//
+//	if filters == nil || len(filters) == 0 {
+//		return docIds, true
+//	}
+//
+//	return docIds, true
+//
+//}
+
 // SearchKeyDocIds
 // @Description 搜索某个字段的某个关键词的文档的方法
 // @Param query 查询结构体
@@ -595,7 +649,6 @@ func (idx *Index) SearchFilterDocIds(filter utils.SearchFilters) ([]uint64, bool
 		})
 		return docIds, true
 	}
-
 	return docIds, false
 }
 
@@ -617,6 +670,12 @@ func (idx *Index) storeIndex() error {
 }
 
 func (idx *Index) findPrimaryKey(primaryKey int64) (uint64, bool) {
+	// 判断是否存在主键
+	if idx.PrimaryKey == "" {
+		idx.Logger.Error("[ERROR] primaryKey is not exist")
+		return 0, false
+	}
+
 	ok, docId := idx.primary.Search(idx.PrimaryKey, primaryKey)
 	if !ok {
 		return 0, false
@@ -625,6 +684,12 @@ func (idx *Index) findPrimaryKey(primaryKey int64) (uint64, bool) {
 }
 
 func (idx *Index) updatePrimaryKey(key int64, docId uint64) error {
+	// 判断是否存在主键
+	if idx.PrimaryKey == "" {
+		idx.Logger.Error("[ERROR] primaryKey is not exist")
+		return errors.New("[ERROR] primaryKey is not exist")
+	}
+
 	err := idx.primary.Set(idx.PrimaryKey, key, uint64(docId))
 
 	if err != nil {
