@@ -33,16 +33,15 @@ type DefaultResult struct {
 
 // 一些返回的错误常量
 const (
-	MethodError        string = "提交方式错误,请查看提交方式是否正确"
-	ParamsError        string = "参数错误"
-	JsonParseError     string = "JSON格式解析错误"
-	NoPrimaryKey       string = "没有主键"
-	ProcessorBusyError string = "处理进程繁忙，请稍候提交"
-	QueryError         string = "查询条件有问题，请检查查询条件"
-	IndexNotFound      string = "未找到对应的索引"
-	OK                 string = `{"status":"OK"}`
-	NotFound           string = `{"status":"NotFound"}`
-	Fail               string = `{"status":"Fail"}`
+	MethodError    string = "提交方式错误,请查看提交方式是否正确"
+	ParamsError    string = "参数错误"
+	JsonParseError string = "JSON格式解析错误"
+	NoPrimaryKey   string = "没有主键"
+	QueryError     string = "查询条件有问题，请检查查询条件"
+	IndexNotFound  string = "未找到对应的索引"
+	OK             string = `{"status":"OK"}`
+	NotFound       string = `{"status":"NotFound"}`
+	Fail           string = `{"status":"Fail"}`
 )
 
 func NewDefaultEngine(logger *utils.Log4FE) *GoDanceEngine {
@@ -59,7 +58,7 @@ func (gde *GoDanceEngine) CreateIndex(params map[string]string, body []byte) err
 		return errors.New(ParamsError)
 	}
 
-	var idx utils.IndexStruct
+	var idx IndexStruct
 	err := json.Unmarshal(body, &idx)
 	if err != nil {
 		gde.Logger.Error("[ERROR]  %v : %v ", JsonParseError, err)
@@ -148,28 +147,42 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	pageSize, hasPageSize := params["pageSize"]
 	curPage, hasCurPage := params["curPage"]
 
-	sortMethod, hasSort := params["sort"]
-
 	if !hasIndex || !hasPageSize || !hasCurPage {
 		return Fail, errors.New(ParamsError)
 	}
 
 	//获取索引
-	indexer := gde.idxManager.GetIndex(indexName)
-	if indexer == nil {
+	idx := gde.idxManager.GetIndex(indexName)
+	if idx == nil {
 		return NotFound, errors.New(IndexNotFound)
 	}
 
-	// 建立过滤条件
-	searchfilters := gde.parseFilted(parms, indexer)
+	// 建立过滤条件和搜索条件
+	searchFilters, searchQueries := gde.parseParams(params)
+	docQueryNodes := make([]utils.DocIdNode, 0)
+	docFilterIds := make([]uint64, 0)
 
-	for field, value := range params {
-
+	// todo 对每个 ids 求交集
+	for _, query := range searchQueries {
+		ids, ok := idx.SearchKeyDocIds(query)
+		if ok {
+			docQueryNodes = append(docQueryNodes, ids...)
+		}
 	}
 
-	docNodes := make([]utils.DocIdNode, 0)
+	// todo 对每个 Ids 求交集
+	for _, filter := range searchFilters {
+		ids, ok := idx.SearchFilterDocIds(filter)
+		if ok {
+			docFilterIds = append(docFilterIds, ids...)
+		}
+	}
 
-	lens := int64(len(docNodes))
+	// todo 需要建立一个关键词过滤的集合
+
+	// todo 对 docQueryNodes 和 docFilterIds求交集, 注意类型 []DocIdNode 和 []uint64
+
+	lens := int64(len(docQueryNodes))
 	if lens == 0 {
 		return NotFound, nil
 	}
@@ -183,8 +196,8 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	var resultSet DefaultResult
 
 	resultSet.Results = make([]map[string]string, 0)
-	for _, docNode := range docNodes[start:end] {
-		doc, ok := indexer.GetDocument(docNode.Docid)
+	for _, docNode := range docQueryNodes[start:end] {
+		doc, ok := idx.GetDocument(docNode.Docid)
 		if ok {
 			resultSet.Results = append(resultSet.Results, doc)
 		}
@@ -236,10 +249,16 @@ func (gde *GoDanceEngine) calcStartEnd(ps, cp string, docSize int64) (int64, int
 	return start, end, nil
 }
 
-func (gde *GoDanceEngine) parseFilter(params map[string]string) []utils.SearchFilters {
+func (gde *GoDanceEngine) parseParams(params map[string]string) ([]utils.SearchFilters, []utils.SearchQuery) {
 
 	searchFilters := make([]utils.SearchFilters, 0)
+	searchQueries := make([]utils.SearchQuery, 0)
 	for param, value := range params {
+
+		if param == "index" || param == "pageSize" || param == "curSize" {
+			continue
+		}
+
 		switch param[0] {
 		case '-':
 			eqValues := strings.Split(value, ",")
@@ -251,20 +270,51 @@ func (gde *GoDanceEngine) parseFilter(params map[string]string) []utils.SearchFi
 			}
 			searchFilters = append(searchFilters, sf)
 		case '>':
-			overValue := value
-			sf := utils.SearchFilters{FieldName: param[1:], Type: utils.FILT_OVER, Start: overValue}
-			for _, v := range eqValues {
-				if valueNum, err := strconv.ParseInt(v, 10, 64); err == nil {
-					sf.Range = append(sf.Range, valueNum)
-				}
+			overValue, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return nil, nil
 			}
+
+			sf := utils.SearchFilters{FieldName: param[1:], Type: utils.FILT_OVER, Start: overValue}
 			searchFilters = append(searchFilters, sf)
 		case '<':
-
+			lessValue, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				return nil, nil
+			}
+			sf := utils.SearchFilters{FieldName: param[1:], Type: utils.FILT_LESS, Start: lessValue}
+			searchFilters = append(searchFilters, sf)
 		case '~':
+			minMax := strings.Split(value, ",")
+			if len(minMax) != 2 {
+				continue
+			}
+			start, err1 := strconv.ParseInt(minMax[0], 10, 64)
+			if err1 != nil {
+				continue
+			}
+			end, err2 := strconv.ParseInt(minMax[1], 10, 64)
+			if err2 != nil {
+				continue
+			}
+			searchFilters = append(searchFilters, utils.SearchFilters{FieldName: param[1:],
+				Type: utils.FILT_RANGE, Start: start, End: end})
+		default:
+			segmenter := utils.GetGseSegmenter()
+			terms := segmenter.CutSearch(value, false)
 
+			if len(terms) == 0 {
+				return nil, nil
+			}
+			//this.Logger.Info("[INFO] SegmentTerms >>>  %v ", terms)
+			for _, term := range terms {
+				var query utils.SearchQuery
+				query.FieldName = param
+				query.Value = term
+				searchQueries = append(searchQueries, query)
+			}
 		}
 	}
 
-	return searchFilters
+	return searchFilters, searchQueries
 }

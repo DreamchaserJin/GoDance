@@ -107,7 +107,6 @@ type TermInfo struct {
 type SearchQuery struct {
 	FieldName string `json:"_field"`
 	Value     string `json:"_value"`
-	Type      uint64 `json:"_type"`
 }
 
 // FSSearchFilted function description : 过滤接口数据结构，内部都是求交集
