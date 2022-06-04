@@ -8,7 +8,7 @@ type Trie struct {
 	// rune代表一个中文字符
 	children  map[rune]*Trie
 	isWord    bool
-	frequency int64
+	frequency uint64
 }
 
 //

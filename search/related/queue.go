@@ -9,7 +9,7 @@ type Queue struct {
 	Array []*Trie
 	// 广搜过程中记录整个单词
 	word [][]rune
-	Size int
+	Size uint64
 	Lock sync.Mutex
 }
 

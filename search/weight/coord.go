@@ -5,7 +5,7 @@ import (
 )
 
 type CoordWeight struct {
-	DocId  int
+	DocId  uint64
 	Weight float64
 }
 
@@ -46,7 +46,7 @@ func CoordAndVectorWeight(docVectorWeight map[int]float64, keyWordIdfs WordTfIdf
 	var cws CoordWeights
 	for k, v := range docVectorWeight {
 		var cw CoordWeight
-		cw.DocId = k
+		cw.DocId = uint64(k)
 		cw.Weight = v * docKeyCount[k] / float64(keyLen)
 		cws = append(cws, cw)
 	}

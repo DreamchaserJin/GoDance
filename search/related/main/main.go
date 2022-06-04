@@ -1,8 +1,8 @@
 package main
 
 import (
+	"GoDance/search/related"
 	"fmt"
-	"search/related"
 )
 
 func main() {

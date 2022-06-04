@@ -5,7 +5,7 @@ type RHeap []*Related
 //小顶堆，按照单词频次、单词长度依次存储
 type Related struct {
 	value     string
-	frequency int64
+	frequency uint64
 }
 
 func (h RHeap) Len() int      { return len(h) }

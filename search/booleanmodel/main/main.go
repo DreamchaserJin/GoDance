@@ -1,9 +1,9 @@
 package main
 
 import (
+	"GoDance/search"
+	"GoDance/search/booleanmodel"
 	"fmt"
-	"search"
-	"search/booleanmodel"
 )
 
 func main() {
