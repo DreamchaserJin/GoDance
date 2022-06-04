@@ -216,7 +216,7 @@ func (seg *Segment) SearchDocIds(query utils.SearchQuery,
 	// bitmap去除被删除的文档
 	if bitmap != nil {
 		for _, docNode := range docIds {
-			if bitmap.GetBit(uint64(docNode.Docid)) == 0 {
+			if bitmap.GetBit(docNode.Docid) == 0 {
 				nowDocNodes = append(nowDocNodes, docNode)
 			}
 		}

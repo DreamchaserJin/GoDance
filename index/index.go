@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 )
@@ -643,6 +644,9 @@ func (idx *Index) SearchFilterDocIds(filter utils.SearchFilters) ([]uint64, bool
 		docIds, _ = seg.SearchDocFilter(filter, idx.bitmap, docIds)
 	}
 	if len(docIds) > 0 {
+		sort.Slice(docIds, func(i, j int) bool {
+			return docIds[i] < docIds[j]
+		})
 		return docIds, true
 	}
 	return docIds, false

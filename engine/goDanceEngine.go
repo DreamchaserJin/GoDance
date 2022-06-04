@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -141,7 +142,7 @@ func (gde *GoDanceEngine) DocumentOptions(method string, params map[string]strin
 // Search todo 搜索
 // @Description
 func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
-	var shows []string
+
 	startTime := time.Now()
 	indexName, hasIndex := params["index"]
 	pageSize, hasPageSize := params["pageSize"]
@@ -158,6 +159,9 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	if indexer == nil {
 		return NotFound, errors.New(IndexNotFound)
 	}
+
+	// 建立过滤条件
+	searchfilters := gde.parseFilted(parms, indexer)
 
 	for field, value := range params {
 
@@ -230,4 +234,37 @@ func (gde *GoDanceEngine) calcStartEnd(ps, cp string, docSize int64) (int64, int
 	}
 
 	return start, end, nil
+}
+
+func (gde *GoDanceEngine) parseFilter(params map[string]string) []utils.SearchFilters {
+
+	searchFilters := make([]utils.SearchFilters, 0)
+	for param, value := range params {
+		switch param[0] {
+		case '-':
+			eqValues := strings.Split(value, ",")
+			sf := utils.SearchFilters{FieldName: param[1:], Type: utils.FILT_EQ, Range: make([]int64, 0)}
+			for _, v := range eqValues {
+				if valueNum, err := strconv.ParseInt(v, 10, 64); err == nil {
+					sf.Range = append(sf.Range, valueNum)
+				}
+			}
+			searchFilters = append(searchFilters, sf)
+		case '>':
+			overValue := value
+			sf := utils.SearchFilters{FieldName: param[1:], Type: utils.FILT_OVER, Start: overValue}
+			for _, v := range eqValues {
+				if valueNum, err := strconv.ParseInt(v, 10, 64); err == nil {
+					sf.Range = append(sf.Range, valueNum)
+				}
+			}
+			searchFilters = append(searchFilters, sf)
+		case '<':
+
+		case '~':
+
+		}
+	}
+
+	return searchFilters
 }
