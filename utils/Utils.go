@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"GoDance/index/segment"
 	"bytes"
 	"container/list"
 	"io/ioutil"
@@ -68,36 +69,27 @@ const (
 	IDX_TYPE_DATE = 15 // 日期型索引 '2015-11-11 00:11:12'，日期型只建立正排，转成时间戳存储
 
 	IDX_TYPE_PK = 21 //主键类型，倒排正排都需要，倒排使用B+树存储
-
 )
 
 // 过滤类型，对应filtertype
 const (
-	FILT_EQ         uint64 = 1  //等于
-	FILT_OVER       uint64 = 2  //大于
-	FILT_LESS       uint64 = 3  //小于
-	FILT_RANGE      uint64 = 4  //范围内
-	FILT_NOT        uint64 = 5  //不等于
-	FILT_STR_PREFIX uint64 = 11 //前缀
-	FILT_STR_SUFFIX uint64 = 12 //后缀
-	FILT_STR_RANGE  uint64 = 13 //之内
-	FILT_STR_ALL    uint64 = 14 //全词
+	FILT_EQ    uint64 = 1 //等于
+	FILT_OVER  uint64 = 2 //大于
+	FILT_LESS  uint64 = 3 //小于
+	FILT_RANGE uint64 = 4 //范围内
+	//FILT_NOT        uint64 = 5  //不等于
+	//FILT_STR_PREFIX uint64 = 11 //前缀
+	//FILT_STR_SUFFIX uint64 = 12 //后缀
+	//FILT_STR_RANGE  uint64 = 13 //之内
+	//FILT_STR_ALL    uint64 = 14 //全词
 )
 
-// SimpleFieldInfo description: 字段的描述信息
-type SimpleFieldInfo struct {
-	FieldName string `json:"fieldname"`
-	FieldType uint64 `json:"fieldtype"`
-	PflOffset int64  `json:"pfloffset"` //正排索引的偏移量
-	PflLen    int    `json:"pfllen"`    //正排索引长度
-}
-
 // IndexStrct 索引构造结构，包含字段信息
-type IndexStrct struct {
-	IndexName    string            `json:"indexname"`
-	ShardNum     uint64            `json:"shardnum"`
-	ShardField   string            `json:"shardfield"`
-	IndexMapping []SimpleFieldInfo `json:"indexmapping"`
+type IndexStruct struct {
+	IndexName     string                    `json:"indexname"`
+	ShardNum      uint64                    `json:"shardnum"`
+	ShardField    string                    `json:"shardfield"`
+	FieldsMapping []segment.SimpleFieldInfo `json:"fieldsmapping"`
 }
 
 type TermInfo struct {
@@ -223,11 +215,11 @@ type Engine interface {
 }
 
 type NodeIndex struct {
-	IndexName    string              `json:"indexname"`
-	ShardNum     uint64              `json:"shardnum"`
-	Shard        []uint64            `json:"shard"`
-	IndexMapping []SimpleFieldInfo   `json:"indexmapping"`
-	ShardNodes   map[uint64][]string `json:"shardnodes"`
+	IndexName    string                    `json:"indexname"`
+	ShardNum     uint64                    `json:"shardnum"`
+	Shard        []uint64                  `json:"shard"`
+	IndexMapping []segment.SimpleFieldInfo `json:"indexmapping"`
+	ShardNodes   map[uint64][]string       `json:"shardnodes"`
 }
 
 type NodeNetInfo struct {
@@ -302,14 +294,14 @@ func Merge(a []DocIdNode, b []DocIdNode) ([]DocIdNode, bool) {
 
 }
 
-func MergeIds(a []uint32, b []uint32) []uint32 {
+func MergeIds(a []uint64, b []uint64) []uint64 {
 	lena := len(a)
 	lenb := len(b)
 	if lena == 0 && lenb == 0 {
-		return make([]uint32, 0)
+		return make([]uint64, 0)
 	}
 	lenc := 0
-	c := make([]uint32, lena+lenb)
+	c := make([]uint64, lena+lenb)
 	ia := 0
 	ib := 0
 	//fmt.Printf("Lena : %v ======== Lenb : %v \n",lena,lenb)

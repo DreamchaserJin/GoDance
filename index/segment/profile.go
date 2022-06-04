@@ -16,11 +16,11 @@ import (
 )
 
 type profile struct {
-	startDocId uint32
-	maxDocId   uint32
+	startDocId uint64
+	maxDocId   uint64
 	isMemory   bool
 	fake       bool
-	fieldType  uint32
+	fieldType  uint64
 	fieldName  string
 
 	pflNumber []int64
@@ -39,7 +39,7 @@ type profile struct {
 //  @param start  起始文档ID
 //  @param cur  最大文档ID
 //  @return *profile 正排索引
-func newEmptyFakeProfile(fieldName string, fieldType, start, cur uint32, logger *utils.Log4FE) *profile {
+func newEmptyFakeProfile(fieldName string, fieldType, start, cur uint64, logger *utils.Log4FE) *profile {
 	pfl := &profile{
 		startDocId: start,
 		maxDocId:   cur,
@@ -61,7 +61,7 @@ func newEmptyFakeProfile(fieldName string, fieldType, start, cur uint32, logger 
 //  @param fieldType 字段类型
 //  @param start 起始文档ID
 //  @return *profile 新的正排索引
-func newEmptyProfile(fieldName string, fieldType, start uint32, logger *utils.Log4FE) *profile {
+func newEmptyProfile(fieldName string, fieldType, start uint64, logger *utils.Log4FE) *profile {
 	pfl := &profile{
 		startDocId: start,
 		maxDocId:   start,
@@ -87,7 +87,7 @@ func newEmptyProfile(fieldName string, fieldType, start uint32, logger *utils.Lo
 //  @param dtlMmap 字段内容的Mmap
 //  @return *profile 正排对象
 //
-func newProfileFromLocalFile(fieldName string, fieldType, start, cur uint32, pflMmap, dtlMmap *utils.Mmap, logger *utils.Log4FE) *profile {
+func newProfileFromLocalFile(fieldName string, fieldType, start, cur uint64, pflMmap, dtlMmap *utils.Mmap, logger *utils.Log4FE) *profile {
 	pfl := &profile{
 		isMemory:   false,
 		startDocId: start,
@@ -106,7 +106,7 @@ func newProfileFromLocalFile(fieldName string, fieldType, start, cur uint32, pfl
 //  @param docId 文档ID
 //  @param contentStr 内容
 //  @return error 任何错误
-func (pfl *profile) addDocument(docId uint32, contentStr string) error {
+func (pfl *profile) addDocument(docId uint64, contentStr string) error {
 	if docId != pfl.maxDocId || pfl.isMemory == false {
 		return errors.New("profile AddDocument :: Wrong DocId Number")
 	}
@@ -228,7 +228,7 @@ func (pfl *profile) setDtlMmap(dtlMmap *utils.Mmap) {
 //  @param segmentName 段名
 //  @return uint32 文档长度
 //  @return error 任何错误
-func (pfl *profile) mergeProfiles(profiles []*profile, segmentName string, delDocSet map[uint32]struct{}) (uint32, error) {
+func (pfl *profile) mergeProfiles(profiles []*profile, segmentName string, delDocSet map[uint64]struct{}) (uint64, error) {
 	pflFileName := fmt.Sprintf("%v%v_profile.pfl", segmentName, pfl.fieldName)
 
 	pflFd, err := os.OpenFile(pflFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
@@ -237,13 +237,13 @@ func (pfl *profile) mergeProfiles(profiles []*profile, segmentName string, delDo
 	}
 
 	defer pflFd.Close()
-	var lens uint32
+	var lens uint64
 
 	if pfl.fieldType == utils.IDX_TYPE_NUMBER || pfl.fieldType == utils.IDX_TYPE_DATE ||
 		pfl.fieldType == utils.IDX_TYPE_FLOAT {
 		valBuffer := make([]byte, 8)
 		for _, p := range profiles {
-			for i := uint32(0); i < (p.maxDocId - p.startDocId); i++ {
+			for i := uint64(0); i < (p.maxDocId - p.startDocId); i++ {
 				val, _ := p.getIntValue(i)
 				binary.LittleEndian.PutUint64(valBuffer, uint64(val))
 				_, err := pflFd.Write(valBuffer)
@@ -266,7 +266,7 @@ func (pfl *profile) mergeProfiles(profiles []*profile, segmentName string, delDo
 
 		lenBuffer := make([]byte, 8)
 		for _, p := range profiles {
-			for i := uint32(0); i < (p.maxDocId - p.startDocId); i++ {
+			for i := uint64(0); i < (p.maxDocId - p.startDocId); i++ {
 				if _, ok := delDocSet[p.startDocId+i]; ok {
 
 					binary.LittleEndian.PutUint64(lenBuffer, uint64(0))
@@ -318,12 +318,12 @@ func (pfl *profile) mergeProfiles(profiles []*profile, segmentName string, delDo
 // @Param pos
 // @Return string
 // @Return bool
-func (pfl *profile) getValue(pos uint32) (string, bool) {
+func (pfl *profile) getValue(pos uint64) (string, bool) {
 	if pfl.fake {
 		return "", true
 	}
 
-	if pfl.isMemory && pos < uint32(len(pfl.pflNumber)) {
+	if pfl.isMemory && pos < uint64(len(pfl.pflNumber)) {
 		if pfl.fieldType == utils.IDX_TYPE_NUMBER {
 			return fmt.Sprintf("%v", pfl.pflNumber[pos]), true
 		} else if pfl.fieldType == utils.IDX_TYPE_DATE {
@@ -362,14 +362,14 @@ func (pfl *profile) getValue(pos uint32) (string, bool) {
 // @Param pos
 // @Return int64
 // @Return bool
-func (pfl *profile) getIntValue(pos uint32) (int64, bool) {
+func (pfl *profile) getIntValue(pos uint64) (int64, bool) {
 	if pfl.fake {
 		return -1, true
 	}
 
 	if pfl.isMemory {
 		if (pfl.fieldType == utils.IDX_TYPE_NUMBER || pfl.fieldType == utils.IDX_TYPE_DATE ||
-			pfl.fieldType == utils.IDX_TYPE_FLOAT) && pos < uint32(len(pfl.pflNumber)) {
+			pfl.fieldType == utils.IDX_TYPE_FLOAT) && pos < uint64(len(pfl.pflNumber)) {
 			return pfl.pflNumber[pos], true
 		}
 		return -1, false

@@ -15,14 +15,14 @@ import (
 
 type SimpleFieldInfo struct {
 	FieldName string `json:"fieldName"`
-	FieldType uint32 `json:"fieldType"`
+	FieldType uint64 `json:"fieldType"`
 }
 
 type Field struct {
 	fieldName  string
-	startDocId uint32
-	maxDocId   uint32
-	fieldType  uint32
+	startDocId uint64
+	maxDocId   uint64
+	fieldType  uint64
 	isMemory   bool
 	ivt        *invert
 	pfl        *profile
@@ -37,7 +37,7 @@ type Field struct {
 	Logger *utils.Log4FE `json:"-"`
 }
 
-func newEmptyFakeField(fieldName string, start, cur, fieldType uint32, logger *utils.Log4FE) *Field {
+func newEmptyFakeField(fieldName string, start, cur, fieldType uint64, logger *utils.Log4FE) *Field {
 	f := &Field{
 		fieldName:  fieldName,
 		startDocId: start,
@@ -51,7 +51,7 @@ func newEmptyFakeField(fieldName string, start, cur, fieldType uint32, logger *u
 	return f
 }
 
-func newEmptyField(fieldName string, start, fieldType uint32, logger *utils.Log4FE) *Field {
+func newEmptyField(fieldName string, start, fieldType uint64, logger *utils.Log4FE) *Field {
 	f := &Field{
 		fieldName:  fieldName,
 		startDocId: start,
@@ -76,8 +76,8 @@ func newEmptyField(fieldName string, start, fieldType uint32, logger *utils.Log4
 	return f
 }
 
-func newFieldFromLocalFile(fieldName, segmentName string, start, max uint32,
-	fieldType uint32, btree *tree.BTreeDB, logger *utils.Log4FE) *Field {
+func newFieldFromLocalFile(fieldName, segmentName string, start, max uint64,
+	fieldType uint64, btree *tree.BTreeDB, logger *utils.Log4FE) *Field {
 
 	f := &Field{
 		fieldName:  fieldName,
@@ -132,7 +132,7 @@ func newFieldFromLocalFile(fieldName, segmentName string, start, max uint32,
 	return f
 }
 
-func (f *Field) addDocument(docId uint32, contentStr string) error {
+func (f *Field) addDocument(docId uint64, contentStr string) error {
 	if docId != f.maxDocId || f.isMemory == false || f.pfl == nil {
 		f.Logger.Error("[ERROR] Field  AddDocument :: Wrong docid %v this.maxDocId %v this.profile %v", docId, f.maxDocId, f.pfl)
 		return errors.New("[ERROR] Wrong docid")
@@ -175,7 +175,7 @@ func (f *Field) query(key string) ([]utils.DocIdNode, bool) {
 	return f.ivt.queryTerm(fmt.Sprintf("%v", key))
 }
 
-func (f *Field) queryFilter(filter utils.SearchFilters) ([]uint32, bool) {
+func (f *Field) queryFilter(filter utils.SearchFilters) ([]uint64, bool) {
 	if f.pfi == nil {
 		return nil, false
 	}
@@ -200,7 +200,7 @@ func (f *Field) queryFilter(filter utils.SearchFilters) ([]uint32, bool) {
 	return f.pfi.queryRange(start, end)
 }
 
-func (f *Field) getValue(docId uint32) (string, bool) {
+func (f *Field) getValue(docId uint64) (string, bool) {
 	if docId >= f.startDocId && docId < f.maxDocId && f.pfl != nil {
 		return f.pfl.getValue(docId - f.startDocId)
 	}
@@ -286,7 +286,7 @@ func (f *Field) destroy() {
 	}
 }
 
-func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTreeDB, delDocSet map[uint32]struct{}) error {
+func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTreeDB, delDocSet map[uint64]struct{}) error {
 
 	if f.pfl != nil {
 		pfls := make([]*profile, 0)

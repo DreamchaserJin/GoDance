@@ -5,6 +5,7 @@ import (
 	"GoDance/index/segment"
 	"GoDance/utils"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 )
@@ -21,7 +22,7 @@ type IndexManager struct {
 	Logger         *utils.Log4FE        `json:"-"`
 }
 
-// 一个引擎就一个索引管理器
+// 一个引擎对应一个索引管理器
 func newIndexManager(logger *utils.Log4FE) *IndexManager {
 	idm := &IndexManager{
 		indexers:       make(map[string]*gdindex.Index),
@@ -51,6 +52,18 @@ func newIndexManager(logger *utils.Log4FE) *IndexManager {
 
 	idm.Logger.Info("[INFO]  New Index Manager ")
 	return idm
+}
+
+func (idm *IndexManager) GetIndex(indexName string) *gdindex.Index {
+	idm.indexMapLocker.RLock()
+	defer idm.indexMapLocker.RUnlock()
+	if _, ok := idm.indexers[indexName]; !ok {
+		idm.Logger.Error("[ERROR] index[%v] not found", indexName)
+		return nil
+	}
+
+	index := idm.indexers[indexName]
+	return index
 }
 
 func (idm *IndexManager) CreateIndex(indexName string, fields []segment.SimpleFieldInfo) error {
@@ -95,10 +108,71 @@ func (idm *IndexManager) DeleteField(indexName string, fieldName string) error {
 	return idm.indexers[indexName].DeleteField(fieldName)
 }
 
+func (idm *IndexManager) addDocument(indexName string, document map[string]string) (string, error) {
+	idm.indexMapLocker.RLock()
+	defer idm.indexMapLocker.RUnlock()
+	if _, ok := idm.indexers[indexName]; !ok {
+		idm.Logger.Error("[ERROR] index[%v] not found", indexName)
+		return Fail, fmt.Errorf("[ERROR] index[%v] not found", indexName)
+	}
+
+	_, err := idm.indexers[indexName].AddDocument(document)
+
+	return OK, err
+}
+
+func (idm *IndexManager) deleteDocument(indexName string, pk string) (string, error) {
+	idm.indexMapLocker.RLock()
+	defer idm.indexMapLocker.RUnlock()
+	if _, ok := idm.indexers[indexName]; !ok {
+		idm.Logger.Error("[ERROR] index[%v] not found", indexName)
+		return Fail, fmt.Errorf("[ERROR] index[%v] not found", indexName)
+	}
+
+	err := idm.indexers[indexName].DeleteDocument(pk)
+
+	return OK, err
+}
+
+func (idm *IndexManager) updateDocument(indexName string, document map[string]string) (string, error) {
+	idm.indexMapLocker.RLock()
+	defer idm.indexMapLocker.RUnlock()
+	if _, ok := idm.indexers[indexName]; !ok {
+		idm.Logger.Error("[ERROR] index[%v] not found", indexName)
+		return Fail, fmt.Errorf("[ERROR] index[%v] not found", indexName)
+	}
+
+	err := idm.indexers[indexName].UpdateDocument(document)
+
+	return OK, err
+}
+
 func (idm *IndexManager) storeIndexManager() error {
 	metaFileName := fmt.Sprintf("%v%v.mgt.meta", utils.IDX_ROOT_PATH, utils.GODANCEENGINE)
 	if err := utils.WriteToJson(idm, metaFileName); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (idm *IndexManager) sync(indexName string) error {
+	idm.indexMapLocker.RLock()
+	defer idm.indexMapLocker.RUnlock()
+	if _, ok := idm.indexers[indexName]; !ok {
+		idm.Logger.Error("[ERROR] index[%v] not found", indexName)
+		return errors.New(fmt.Sprintf("[ERROR] index[%v] not found", indexName))
+	}
+
+	return idm.indexers[indexName].SyncMemorySegment()
+}
+
+func (idm *IndexManager) mergeIndex(indexName string) error {
+	idm.indexMapLocker.RLock()
+	defer idm.indexMapLocker.RUnlock()
+	if _, ok := idm.indexers[indexName]; !ok {
+		idm.Logger.Error("[ERROR] index[%v] not found", indexName)
+		return errors.New(fmt.Sprintf("[ERROR] index[%v] not found", indexName))
+	}
+
+	return idm.indexers[indexName].MergeSegments(-1)
 }

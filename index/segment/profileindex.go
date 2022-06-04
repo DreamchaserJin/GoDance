@@ -18,12 +18,12 @@ import (
 )
 
 type profileindex struct {
-	curDocId      uint32
+	curDocId      uint64
 	isMemory      bool
-	fieldType     uint32
+	fieldType     uint64
 	fieldName     string
 	pfiMmap       *utils.Mmap
-	memoryHashMap map[int64][]uint32
+	memoryHashMap map[int64][]uint64
 	Logger        *utils.Log4FE
 	btree         *tree.BTreeDB
 }
@@ -35,22 +35,22 @@ type profileindex struct {
 // @Param fieldName 字段名
 // @Param logger  日志
 // @Return *profileindex 正排索引的引用
-func newEmptyProfileIndex(fieldType uint32, startDocId uint32, fieldName string, logger *utils.Log4FE) *profileindex {
-	ivt := &profileindex{
+func newEmptyProfileIndex(fieldType, startDocId uint64, fieldName string, logger *utils.Log4FE) *profileindex {
+	pfi := &profileindex{
 		curDocId:      startDocId,
 		isMemory:      true,
 		fieldType:     fieldType,
 		fieldName:     fieldName,
-		memoryHashMap: make(map[int64][]uint32),
+		memoryHashMap: make(map[int64][]uint64),
 		Logger:        logger,
 	}
-	return ivt
+	return pfi
 }
 
-func newProfileIndexFromLocalFile(btdb *tree.BTreeDB, fieldType uint32, fieldName, segmentName string,
+func newProfileIndexFromLocalFile(btdb *tree.BTreeDB, fieldType uint64, fieldName, segmentName string,
 	pfiMmap *utils.Mmap, logger *utils.Log4FE) *profileindex {
 
-	ivt := &profileindex{
+	pfi := &profileindex{
 		isMemory:  false,
 		fieldType: fieldType,
 		fieldName: fieldName,
@@ -58,7 +58,7 @@ func newProfileIndexFromLocalFile(btdb *tree.BTreeDB, fieldType uint32, fieldNam
 		Logger:    logger,
 		btree:     btdb,
 	}
-	return ivt
+	return pfi
 }
 
 // addDocument
@@ -66,7 +66,7 @@ func newProfileIndexFromLocalFile(btdb *tree.BTreeDB, fieldType uint32, fieldNam
 // @Param docId 文档ID
 // @Param contentStr 内容
 // @Return error 任何错误
-func (pfi *profileindex) addDocument(docId uint32, contentStr string) error {
+func (pfi *profileindex) addDocument(docId uint64, contentStr string) error {
 	if docId != pfi.curDocId {
 		return errors.New("profileindex AddDocument :: Wrong DocId Number")
 	}
@@ -77,11 +77,11 @@ func (pfi *profileindex) addDocument(docId uint32, contentStr string) error {
 	switch pfi.fieldType {
 	case utils.IDX_TYPE_NUMBER:
 
-		intValue, err := strconv.Atoi(contentStr)
+		intValue, err := strconv.ParseInt(contentStr, 10, 64)
 		if err != nil {
 			intValue = -1
 		}
-		value = int64(intValue)
+		value = intValue
 	case utils.IDX_TYPE_FLOAT:
 		floatValue, err := strconv.ParseFloat(contentStr, 64)
 		if err != nil {
@@ -93,7 +93,7 @@ func (pfi *profileindex) addDocument(docId uint32, contentStr string) error {
 	}
 
 	if _, ok := pfi.memoryHashMap[value]; !ok {
-		var docIds []uint32
+		var docIds []uint64
 		docIds = append(docIds, docId)
 		pfi.memoryHashMap[value] = docIds
 	} else {
@@ -137,7 +137,7 @@ func (pfi *profileindex) serialization(segmentName string, btdb *tree.BTreeDB) e
 		idxFd.Write(stringBuffer.Bytes())
 		leafNodes[key] = fmt.Sprintf("%v", nowOffset)
 
-		nowOffset += uint64(lens)*4 + 8
+		nowOffset += uint64(lens)*8 + 8
 	}
 
 	pfi.btree.SetBatch(pfi.fieldName, leafNodes)
@@ -175,13 +175,13 @@ func (pfi *profileindex) mergeProfileIndex(inverts []*profileindex, segmentName 
 	totalOffset := int(fi.Size())
 
 	pfi.btree = btdb
-	type ivtMerge struct {
-		ivt    *profileindex
+	type pfiMerge struct {
+		p      *profileindex
 		key    int64
-		docids []uint32
+		docids []uint64
 	}
 
-	ivts := make([]ivtMerge, 0)
+	pfis := make([]pfiMerge, 0)
 
 	for _, i := range inverts {
 		if i.btree == nil {
@@ -194,48 +194,48 @@ func (pfi *profileindex) mergeProfileIndex(inverts []*profileindex, segmentName 
 		}
 
 		docIds, _ := pfi.queryTerm(key)
-		ivts = append(ivts, ivtMerge{
-			ivt:    i,
+		pfis = append(pfis, pfiMerge{
+			p:      i,
 			key:    key,
 			docids: docIds,
 		})
 	}
 
 	resflag := 0
-	for i := range ivts {
+	for i := range pfis {
 		resflag = resflag | (1 << uint(i))
 	}
 	flag := 0
 	for flag != resflag {
-		minKey := ivts[0].key
+		minKey := pfis[0].key
 		meridxs := make([]int, 0)
-		for idx, ivt := range ivts {
+		for idx, p := range pfis {
 			if flag>>uint(idx)&1 != 0 {
 				continue
 			}
-			if minKey > ivt.key {
-				minKey = ivt.key
+			if minKey > p.key {
+				minKey = p.key
 				meridxs = make([]int, 0)
 				meridxs = append(meridxs, idx)
-			} else if minKey == ivt.key {
+			} else if minKey == p.key {
 				meridxs = append(meridxs, idx)
 				continue
 			}
 		}
 
-		value := make([]uint32, 0)
+		value := make([]uint64, 0)
 
 		for _, idx := range meridxs {
-			value = append(value, ivts[idx].docids...)
+			value = append(value, pfis[idx].docids...)
 
-			key, _, ok := ivts[idx].ivt.GetNextKV(ivts[idx].key)
+			key, _, ok := pfis[idx].p.GetNextKV(pfis[idx].key)
 			if !ok {
 				flag = flag | (1 << uint(idx))
 				continue
 			}
 
-			ivts[idx].key = key
-			ivts[idx].docids, ok = ivts[idx].ivt.queryTerm(key)
+			pfis[idx].key = key
+			pfis[idx].docids, ok = pfis[idx].p.queryTerm(key)
 		}
 
 		lens := len(value)
@@ -250,7 +250,7 @@ func (pfi *profileindex) mergeProfileIndex(inverts []*profileindex, segmentName 
 		}
 		idxFd.Write(buffer.Bytes())
 		pfi.btree.Set(pfi.fieldName, minKey, uint64(totalOffset))
-		totalOffset = totalOffset + 8 + lens*4
+		totalOffset = totalOffset + 8 + lens*8
 	}
 
 	pfi.memoryHashMap = nil
@@ -276,7 +276,7 @@ func (pfi *profileindex) GetNextKV(key int64) (int64, uint64, bool) {
 	return pfi.btree.GetNextKV(pfi.fieldName, key)
 }
 
-func (pfi *profileindex) queryTerm(key int64) ([]uint32, bool) {
+func (pfi *profileindex) queryTerm(key int64) ([]uint64, bool) {
 
 	if pfi.isMemory == true {
 		docIds, ok := pfi.memoryHashMap[key]
@@ -297,9 +297,9 @@ func (pfi *profileindex) queryTerm(key int64) ([]uint32, bool) {
 	return nil, false
 }
 
-func (pfi *profileindex) queryRange(keyMin, keyMax int64) ([]uint32, bool) {
+func (pfi *profileindex) queryRange(keyMin, keyMax int64) ([]uint64, bool) {
 
-	res := make([]uint32, 0)
+	res := make([]uint64, 0)
 	if pfi.isMemory == true {
 		for k, v := range pfi.memoryHashMap {
 			if k >= keyMin && k <= keyMax {
