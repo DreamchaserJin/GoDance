@@ -2,11 +2,10 @@ package utils
 
 import (
 	"fmt"
+	"github.com/apsdehal/go-logger"
 	"os"
 	"path"
 	"runtime"
-
-	"github.com/apsdehal/go-logger"
 )
 
 type Log4FE struct {

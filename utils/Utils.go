@@ -18,7 +18,7 @@ const IDX_ROOT_PATH string = "./data/"
 const GODANCEENGINE string = "GoDanceEngine"
 
 type DocIdNode struct {
-	Docid  uint32
+	Docid  uint64
 	WordTF float64
 }
 
@@ -44,6 +44,13 @@ func (a DocWeightSort) Less(i, j int) bool {
 	return CompareFloat64(a[i].WordTF, a[j].WordTF) < 0
 }
 
+//
+//  CompareFloat64
+//  @Description: 比较两个float64类型的数。如果两值之差小于10的-15次方，则会认为它们相等。如果a大于b,则返回1。a小于b,则返回-1。
+//  @param a
+//  @param b
+//  @return int
+//
 func CompareFloat64(a, b float64) int {
 	if math.Abs(a-b) < 1e-15 {
 		return 0
@@ -55,7 +62,7 @@ func CompareFloat64(a, b float64) int {
 	}
 }
 
-const DOCNODE_SIZE int = 12 //12
+const DOCNODE_SIZE int = 16
 
 // 索引类型说明
 const (
@@ -68,37 +75,20 @@ const (
 	IDX_TYPE_DATE = 15 // 日期型索引 '2015-11-11 00:11:12'，日期型只建立正排，转成时间戳存储
 
 	IDX_TYPE_PK = 21 //主键类型，倒排正排都需要，倒排使用B+树存储
-
 )
 
 // 过滤类型，对应filtertype
 const (
-	FILT_EQ         uint64 = 1  //等于
-	FILT_OVER       uint64 = 2  //大于
-	FILT_LESS       uint64 = 3  //小于
-	FILT_RANGE      uint64 = 4  //范围内
-	FILT_NOT        uint64 = 5  //不等于
-	FILT_STR_PREFIX uint64 = 11 //前缀
-	FILT_STR_SUFFIX uint64 = 12 //后缀
-	FILT_STR_RANGE  uint64 = 13 //之内
-	FILT_STR_ALL    uint64 = 14 //全词
+	FILT_EQ    uint64 = 1 //等于
+	FILT_OVER  uint64 = 2 //大于
+	FILT_LESS  uint64 = 3 //小于
+	FILT_RANGE uint64 = 4 //范围内
+	//FILT_NOT        uint64 = 5  //不等于
+	//FILT_STR_PREFIX uint64 = 11 //前缀
+	//FILT_STR_SUFFIX uint64 = 12 //后缀
+	//FILT_STR_RANGE  uint64 = 13 //之内
+	//FILT_STR_ALL    uint64 = 14 //全词
 )
-
-// SimpleFieldInfo description: 字段的描述信息
-type SimpleFieldInfo struct {
-	FieldName string `json:"fieldname"`
-	FieldType uint64 `json:"fieldtype"`
-	PflOffset int64  `json:"pfloffset"` //正排索引的偏移量
-	PflLen    int    `json:"pfllen"`    //正排索引长度
-}
-
-// IndexStrct 索引构造结构，包含字段信息
-type IndexStrct struct {
-	IndexName    string            `json:"indexname"`
-	ShardNum     uint64            `json:"shardnum"`
-	ShardField   string            `json:"shardfield"`
-	IndexMapping []SimpleFieldInfo `json:"indexmapping"`
-}
 
 type TermInfo struct {
 	Term string
@@ -222,21 +212,6 @@ type Engine interface {
 	InitEngine() error
 }
 
-type NodeIndex struct {
-	IndexName    string              `json:"indexname"`
-	ShardNum     uint64              `json:"shardnum"`
-	Shard        []uint64            `json:"shard"`
-	IndexMapping []SimpleFieldInfo   `json:"indexmapping"`
-	ShardNodes   map[uint64][]string `json:"shardnodes"`
-}
-
-type NodeNetInfo struct {
-	Addr    string         `json:"addr"`
-	MPort   string         `json:"mport"`
-	CPort   string         `json:"cport"`
-	IdxChan chan NodeIndex `json:"-"`
-}
-
 /*****************************************************************************
 *  function name : Merge
 *  params :
@@ -302,14 +277,14 @@ func Merge(a []DocIdNode, b []DocIdNode) ([]DocIdNode, bool) {
 
 }
 
-func MergeIds(a []uint32, b []uint32) []uint32 {
+func MergeIds(a []uint64, b []uint64) []uint64 {
 	lena := len(a)
 	lenb := len(b)
 	if lena == 0 && lenb == 0 {
-		return make([]uint32, 0)
+		return make([]uint64, 0)
 	}
 	lenc := 0
-	c := make([]uint32, lena+lenb)
+	c := make([]uint64, lena+lenb)
 	ia := 0
 	ib := 0
 	//fmt.Printf("Lena : %v ======== Lenb : %v \n",lena,lenb)

@@ -16,10 +16,10 @@ import (
 )
 
 type Segment struct {
-	StartDocId  uint32            `json:"startDocId"`
-	MaxDocId    uint32            `json:"maxDocId"`
+	StartDocId  uint64            `json:"startDocId"`
+	MaxDocId    uint64            `json:"maxDocId"`
 	SegmentName string            `json:"segmentName"`
-	FieldInfos  map[string]uint32 `json:"fields"`
+	FieldInfos  map[string]uint64 `json:"fields"`
 	Logger      *utils.Log4FE     `json:"-"`
 
 	fields   map[string]*Field
@@ -33,7 +33,7 @@ type Segment struct {
 // @Param start  文档起始Id
 // @Param fields  字段信息
 // @Return 新建的段
-func NewEmptySegmentByFieldsInfo(segmentName string, start uint32, fields map[string]uint32, logger *utils.Log4FE) *Segment {
+func NewEmptySegmentByFieldsInfo(segmentName string, start uint64, fields map[string]uint64, logger *utils.Log4FE) *Segment {
 	seg := &Segment{
 		StartDocId:  start,
 		MaxDocId:    start,
@@ -63,7 +63,7 @@ func NewSegmentFromLocalFile(segmentName string, logger *utils.Log4FE) *Segment 
 		StartDocId:  0,
 		MaxDocId:    0,
 		SegmentName: segmentName,
-		FieldInfos:  make(map[string]uint32),
+		FieldInfos:  make(map[string]uint64),
 		Logger:      logger,
 		fields:      make(map[string]*Field),
 		isMemory:    false,
@@ -121,13 +121,13 @@ func (seg *Segment) AddField(newField SimpleFieldInfo) error {
 // @Param fieldName 字段名
 // @Return error 任何error
 func (seg *Segment) DeleteField(fieldName string) error {
-	if _, ok := seg.FieldInfos[fieldName]; ok {
-		seg.Logger.Warn("[WARN] Segment has field [%v]", fieldName)
-		return errors.New("segment has field")
+	if _, ok := seg.FieldInfos[fieldName]; !ok {
+		seg.Logger.Warn("[WARN] Segment doesn't have field [%v]", fieldName)
+		return errors.New("segment doesn't has field")
 	}
 	if seg.isMemory && !seg.IsEmpty() {
 		seg.Logger.Warn("[WARN] Segment has field [%v]", fieldName)
-		return errors.New("segment can't add field")
+		return errors.New("segment can't delete field")
 	}
 
 	seg.fields[fieldName].destroy()
@@ -144,7 +144,7 @@ func (seg *Segment) DeleteField(fieldName string) error {
 // @Param docId    文档ID
 // @Param content  map[字段名]内容
 // @Return error   任何错误
-func (seg *Segment) AddDocument(docId uint32, content map[string]string) error {
+func (seg *Segment) AddDocument(docId uint64, content map[string]string) error {
 	if docId != seg.MaxDocId {
 		seg.Logger.Error("[ERROR] Segment AddDocument Wrong DocId[%v]  MaxDocId[%v]", docId, seg.MaxDocId)
 		return errors.New("segment Maximum ID Mismatch")
@@ -174,7 +174,7 @@ func (seg *Segment) AddDocument(docId uint32, content map[string]string) error {
 // @Param docId 文档ID
 // @Return map[string]string 返回的内容
 // @Return bool 是否找到文档
-func (seg *Segment) GetDocument(docId uint32) (map[string]string, bool) {
+func (seg *Segment) GetDocument(docId uint64) (map[string]string, bool) {
 
 	if docId < seg.StartDocId || docId >= seg.MaxDocId {
 		return nil, false
@@ -216,7 +216,7 @@ func (seg *Segment) SearchDocIds(query utils.SearchQuery,
 	// bitmap去除被删除的文档
 	if bitmap != nil {
 		for _, docNode := range docIds {
-			if bitmap.GetBit(uint64(docNode.Docid)) == 0 {
+			if bitmap.GetBit(docNode.Docid) == 0 {
 				nowDocNodes = append(nowDocNodes, docNode)
 			}
 		}
@@ -226,10 +226,10 @@ func (seg *Segment) SearchDocIds(query utils.SearchQuery,
 	return nowDocNodes, true
 }
 
-func (seg *Segment) SearchDocFilter(filter utils.SearchFilters, bitmap *utils.Bitmap, nowDocIds []uint32) ([]uint32, bool) {
+func (seg *Segment) SearchDocFilter(filter utils.SearchFilters, bitmap *utils.Bitmap, nowDocIds []uint64) ([]uint64, bool) {
 
 	// 倒排查询的 ID 切片
-	var docIds []uint32
+	var docIds []uint64
 
 	if _, ok := seg.fields[filter.FieldName]; !ok {
 		return nowDocIds, false
@@ -243,7 +243,7 @@ func (seg *Segment) SearchDocFilter(filter utils.SearchFilters, bitmap *utils.Bi
 	// bitmap去除被删除的文档
 	if bitmap != nil {
 		for _, docId := range docIds {
-			if bitmap.GetBit(uint64(docId)) == 0 {
+			if bitmap.GetBit(docId) == 0 {
 				nowDocIds = append(nowDocIds, docId)
 			}
 		}
@@ -334,7 +334,7 @@ func (seg *Segment) IsEmpty() bool {
 // @Description 合并段
 // @Param sgs  需要合并的段
 // @Return 任何error
-func (seg *Segment) MergeSegments(sgs []*Segment, delDocSet map[uint32]struct{}) error {
+func (seg *Segment) MergeSegments(sgs []*Segment, delDocSet map[uint64]struct{}) error {
 	seg.Logger.Info("[INFO] MergeSegments [%v] Start", seg.SegmentName)
 
 	btdbName := fmt.Sprintf("%v%v", seg.SegmentName, "seg.db")

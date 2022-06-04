@@ -1,7 +1,7 @@
 /*****************************************************************************
  *  file name : Mmap.go
- *  author : Wu Yinghao
- *  email  : wyh817@gmail.com
+ *  author : iceberg
+ *  email  : iceberg_iceberg@163.com
  *
  *  file description : mmap底层封装
  *
@@ -10,7 +10,6 @@
 package utils
 
 import (
-	//"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -160,13 +159,13 @@ func (m *Mmap) ReadDocIdsArry(start uint64, len uint64) []DocIdNode {
 }
 
 // ReadIdsSet 读取一个倒排集合
-func (m *Mmap) ReadIdsSet(start uint64, len int) map[uint32]struct{} {
+func (m *Mmap) ReadIdsSet(start uint64, len int) map[uint64]struct{} {
 	offset := start
-	res := make(map[uint32]struct{})
+	res := make(map[uint64]struct{})
 	for i := 0; i < len; i++ {
-		id := binary.LittleEndian.Uint32(m.MmapBytes[offset : offset+4])
+		id := binary.LittleEndian.Uint64(m.MmapBytes[offset : offset+8])
 		res[id] = struct{}{}
-		offset += 4
+		offset += 8
 	}
 
 	return res
@@ -177,12 +176,12 @@ func (m *Mmap) ReadIdsSet(start uint64, len int) map[uint32]struct{} {
 // @receiver this
 // @return []uint32
 //
-func (m *Mmap) ReadIdsArray(start uint64, len int) []uint32 {
-	arr := make([]uint32, 0)
+func (m *Mmap) ReadIdsArray(start uint64, len int) []uint64 {
+	arr := make([]uint64, 0)
 	offset := start
 	for i := 0; i < len; i++ {
-		arr = append(arr, binary.LittleEndian.Uint32(m.MmapBytes[offset:offset+4]))
-		offset += 4
+		arr = append(arr, binary.LittleEndian.Uint64(m.MmapBytes[offset:offset+8]))
+		offset += 8
 	}
 
 	return arr

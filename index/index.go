@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 )
@@ -23,10 +24,10 @@ import (
 type Index struct {
 	Name              string            `json:"name"`
 	PathName          string            `json:"pathName"`
-	Fields            map[string]uint32 `json:"fields"`
+	Fields            map[string]uint64 `json:"fields"`
 	PrimaryKey        string            `json:"primaryKey"`
-	StartDocId        uint32            `json:"startDocId"`
-	MaxDocId          uint32            `json:"maxDocId"`
+	StartDocId        uint64            `json:"startDocId"`
+	MaxDocId          uint64            `json:"maxDocId"`
 	DelDocNum         int               `json:"delDocNum"`
 	NextSegmentSuffix uint64            `json:"nextSegmentSuffix"`
 	SegmentNames      []string          `json:"segmentNames"`
@@ -51,7 +52,7 @@ func NewEmptyIndex(name, pathname string, logger *utils.Log4FE) *Index {
 	idx := &Index{
 		Name:              name,
 		PathName:          pathname,
-		Fields:            make(map[string]uint32),
+		Fields:            make(map[string]uint64),
 		PrimaryKey:        "",
 		StartDocId:        0,
 		MaxDocId:          0,
@@ -88,7 +89,7 @@ func NewIndexFromLocalFile(name, pathname string, logger *utils.Log4FE) *Index {
 	idx := &Index{
 		Name:         name,
 		PathName:     pathname,
-		Fields:       make(map[string]uint32),
+		Fields:       make(map[string]uint64),
 		SegmentNames: make([]string, 0),
 		segments:     make([]*segment.Segment, 0),
 		pkMap:        make(map[int64]string),
@@ -114,7 +115,7 @@ func NewIndexFromLocalFile(name, pathname string, logger *utils.Log4FE) *Index {
 
 	segmentName := fmt.Sprintf("%v%v_%v/", idx.PathName, idx.Name, idx.NextSegmentSuffix)
 
-	fields := make(map[string]uint32)
+	fields := make(map[string]uint64)
 
 	for fieldName, fieldType := range idx.Fields {
 		if fieldType != utils.IDX_TYPE_PK {
@@ -165,7 +166,7 @@ func (idx *Index) AddField(field segment.SimpleFieldInfo) error {
 		if idx.memorySegment == nil {
 			// 如果内存段为 nil 则新建一个内存段并添加字段
 			segmentName := fmt.Sprintf("%v%v_%v/", idx.PathName, idx.Name, idx.NextSegmentSuffix)
-			fields := make(map[string]uint32)
+			fields := make(map[string]uint64)
 			for fieldName, fieldType := range idx.Fields {
 				if fieldType != utils.IDX_TYPE_PK {
 					fields[fieldName] = fieldType
@@ -191,7 +192,7 @@ func (idx *Index) AddField(field segment.SimpleFieldInfo) error {
 			idx.SegmentNames = append(idx.SegmentNames, tempSegment.SegmentName)
 
 			segmentName := fmt.Sprintf("%v%v_%v/", idx.PathName, idx.Name, idx.NextSegmentSuffix)
-			fields := make(map[string]uint32)
+			fields := make(map[string]uint64)
 			for fieldName, fieldType := range idx.Fields {
 				if fieldType != utils.IDX_TYPE_PK {
 					fields[fieldName] = fieldType
@@ -226,7 +227,7 @@ func (idx *Index) DeleteField(fieldName string) error {
 
 	if idx.memorySegment == nil {
 		segmentName := fmt.Sprintf("%v%v_%v/", idx.PathName, idx.Name, idx.NextSegmentSuffix)
-		fields := make(map[string]uint32)
+		fields := make(map[string]uint64)
 		for fieldName, fieldType := range idx.Fields {
 			if fieldType != utils.IDX_TYPE_PK {
 				fields[fieldName] = fieldType
@@ -250,7 +251,7 @@ func (idx *Index) DeleteField(fieldName string) error {
 		idx.SegmentNames = append(idx.SegmentNames, tempSegment.SegmentName)
 
 		segmentName := fmt.Sprintf("%v%v_%v/", idx.PathName, idx.Name, idx.NextSegmentSuffix)
-		fields := make(map[string]uint32)
+		fields := make(map[string]uint64)
 		for fieldName, fieldType := range idx.Fields {
 			if fieldType != utils.IDX_TYPE_PK {
 				fields[fieldName] = fieldType
@@ -268,7 +269,7 @@ func (idx *Index) DeleteField(fieldName string) error {
 // @Param content 一个map，key是字段，value是内容
 // @Return uint32 文档Id
 // @Return error 任何error
-func (idx *Index) AddDocument(content map[string]string) (uint32, error) {
+func (idx *Index) AddDocument(content map[string]string) (uint64, error) {
 	if len(idx.Fields) == 0 {
 		idx.Logger.Error("[ERROR] Index has no Field")
 		return 0, errors.New("index has no Field")
@@ -279,7 +280,7 @@ func (idx *Index) AddDocument(content map[string]string) (uint32, error) {
 
 		segmentName := fmt.Sprintf("%v%v_%v/", idx.PathName, idx.Name, idx.NextSegmentSuffix)
 
-		fields := make(map[string]uint32)
+		fields := make(map[string]uint64)
 		for fieldName, fieldType := range idx.Fields {
 			if fieldType != utils.IDX_TYPE_PK {
 				fields[fieldName] = fieldType
@@ -321,20 +322,20 @@ func (idx *Index) AddDocument(content map[string]string) (uint32, error) {
 // @Description: 更新文档的内容，先删除再添加
 // @Param content 更新后的内容
 // @Return error  任何错误
-func (idx *Index) UpdateDocument(content map[string]string) (uint32, error) {
+func (idx *Index) UpdateDocument(content map[string]string) error {
 	if _, ok := content[idx.PrimaryKey]; !ok {
 		idx.Logger.Error("[ERROR] Primary Key Not Found %v", idx.PrimaryKey)
-		return 0, errors.New("no Primary Key")
+		return errors.New("no Primary Key")
 	}
 
-	pkval, err := strconv.Atoi(content[idx.PrimaryKey])
+	pk, err := strconv.ParseInt(content[idx.PrimaryKey], 10, 64)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	oldDocId, ok := idx.findPrimaryKey(int64(pkval))
-	if idx.bitmap.GetBit(uint64(oldDocId)) == 1 {
-		return 0, errors.New("doc has been deleted or not exist")
+	oldDocId, ok := idx.findPrimaryKey(pk)
+	if idx.bitmap.GetBit(oldDocId) == 1 {
+		return errors.New("doc has been deleted or not exist")
 	}
 	if ok {
 		success := idx.bitmap.SetBit(uint64(oldDocId), 1)
@@ -343,20 +344,20 @@ func (idx *Index) UpdateDocument(content map[string]string) (uint32, error) {
 		}
 	}
 
-	if err := idx.updatePrimaryKey(int64(pkval), oldDocId); err != nil {
-		return 0, err
+	if err := idx.updatePrimaryKey(pk, oldDocId); err != nil {
+		return err
 	}
 
 	docId := idx.MaxDocId
 	idx.MaxDocId++
-	return oldDocId, idx.memorySegment.AddDocument(docId, content)
+	return idx.memorySegment.AddDocument(docId, content)
 }
 
 // GetDocument
 // @Description: 根据文档ID获取文档内容
 // @Param docId 文档ID
 // @Return map[string]string 文档内容，key是字段名，value是内容
-func (idx *Index) GetDocument(docId uint32) (map[string]string, bool) {
+func (idx *Index) GetDocument(docId uint64) (map[string]string, bool) {
 	for _, seg := range idx.segments {
 		if docId >= seg.StartDocId && docId < seg.MaxDocId {
 			return seg.GetDocument(docId)
@@ -368,22 +369,28 @@ func (idx *Index) GetDocument(docId uint32) (map[string]string, bool) {
 // DeleteDocument
 // @Description: 根据主键删除文档
 // @param primaryKey 根据
-// @return bool 是否删除成功
-func (idx *Index) DeleteDocument(primaryKey int64) bool {
+// @return error 任何错误
+func (idx *Index) DeleteDocument(primaryKey string) error {
 
-	docId, ok := idx.findPrimaryKey(primaryKey)
+	pk, err := strconv.ParseInt(primaryKey, 10, 64)
+
+	if err != nil {
+		return err
+	}
+
+	docId, ok := idx.findPrimaryKey(pk)
 	if ok {
-		if idx.bitmap.GetBit(uint64(docId)) == 1 {
-			return true
+		if idx.bitmap.GetBit(docId) == 1 {
+			return nil
 		}
 		success := idx.bitmap.SetBit(uint64(docId), 1)
 		if success {
 			idx.deleteDocumentByDocId(docId)
 		}
-		return success
+		return nil
 	}
 
-	return false
+	return err
 }
 
 // SyncMemorySegment
@@ -465,7 +472,7 @@ func (idx *Index) MergeSegments(start int) error {
 	if err != nil {
 		idx.Logger.Error("Mkdir error : %v", err)
 	}
-	fields := make(map[string]uint32)
+	fields := make(map[string]uint64)
 	for fieldName, fieldType := range idx.Fields {
 		if fieldType != utils.IDX_TYPE_PK {
 			fields[fieldName] = fieldType
@@ -629,14 +636,17 @@ func (idx *Index) SearchKeyDocIds(query utils.SearchQuery) ([]utils.DocIdNode, b
 // @Param query 过滤条件结构体
 // @Return []utils.DocIdNode 查找到的ID
 // @Return bool 是否查找成功
-func (idx *Index) SearchFilterDocIds(filter utils.SearchFilters) ([]uint32, bool) {
+func (idx *Index) SearchFilterDocIds(filter utils.SearchFilters) ([]uint64, bool) {
 
 	// 最终返回的结果
-	docIds := make([]uint32, 0)
+	docIds := make([]uint64, 0)
 	for _, seg := range idx.segments {
 		docIds, _ = seg.SearchDocFilter(filter, idx.bitmap, docIds)
 	}
 	if len(docIds) > 0 {
+		sort.Slice(docIds, func(i, j int) bool {
+			return docIds[i] < docIds[j]
+		})
 		return docIds, true
 	}
 	return docIds, false
@@ -649,12 +659,9 @@ func (idx *Index) storeIndex() error {
 	if err := utils.WriteToJson(idx, metaFileName); err != nil {
 		return err
 	}
-	// startTime := time.Now()
-	// idx.Logger.Debug("[INFO] start storeIndex %v", startTime)
-
-	idx.primary.SetBatch(idx.PrimaryKey, idx.pkMap)
-
-	// idx.Logger.Debug("[INFO] start storeIndex %v", startTime)
+	if idx.PrimaryKey != "" {
+		idx.primary.SetBatch(idx.PrimaryKey, idx.pkMap)
+	}
 
 	idx.pkMap = nil
 	idx.pkMap = make(map[int64]string)
@@ -662,15 +669,15 @@ func (idx *Index) storeIndex() error {
 	return nil
 }
 
-func (idx *Index) findPrimaryKey(primaryKey int64) (uint32, bool) {
+func (idx *Index) findPrimaryKey(primaryKey int64) (uint64, bool) {
 	ok, docId := idx.primary.Search(idx.PrimaryKey, primaryKey)
 	if !ok {
 		return 0, false
 	}
-	return uint32(docId), true
+	return docId, true
 }
 
-func (idx *Index) updatePrimaryKey(key int64, docId uint32) error {
+func (idx *Index) updatePrimaryKey(key int64, docId uint64) error {
 	err := idx.primary.Set(idx.PrimaryKey, key, uint64(docId))
 
 	if err != nil {
@@ -680,11 +687,11 @@ func (idx *Index) updatePrimaryKey(key int64, docId uint32) error {
 	return nil
 }
 
-func (idx *Index) deleteDocumentByDocId(docId uint32) {
+func (idx *Index) deleteDocumentByDocId(docId uint64) {
 	idx.DelDocNum++
 	buf := make([]byte, 4)
 
-	binary.LittleEndian.PutUint32(buf, docId)
+	binary.LittleEndian.PutUint64(buf, docId)
 	delFileName := fmt.Sprintf("%v%v.del", idx.PathName, idx.Name)
 	delFile, err := os.OpenFile(delFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {

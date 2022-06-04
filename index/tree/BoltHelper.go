@@ -1,12 +1,12 @@
 package tree
 
 import (
+	"GoDance/utils"
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"github.com/boltdb/bolt"
-	"utils"
 )
 
 type BoltHelper struct {

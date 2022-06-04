@@ -14,24 +14,27 @@ func TestCreateIndex(t *testing.T) {
 	if err != nil {
 		fmt.Printf("err happen: %v", err)
 	}
-	index := gdindex.NewEmptyIndex("wechat", utils.IDX_ROOT_PATH, logger)
+	index := gdindex.NewEmptyIndex("gk", utils.IDX_ROOT_PATH, logger)
 
 	field1 := segment.SimpleFieldInfo{
-		FieldName: "id",
-		FieldType: utils.IDX_TYPE_PK,
-	}
-	field2 := segment.SimpleFieldInfo{
-		FieldName: "content",
-		FieldType: utils.IDX_TYPE_STRING_SEG,
-	}
-	field3 := segment.SimpleFieldInfo{
-		FieldName: "text",
+		FieldName: "year",
 		FieldType: utils.IDX_TYPE_NUMBER,
 	}
+	field2 := segment.SimpleFieldInfo{
+		FieldName: "region",
+		FieldType: utils.IDX_TYPE_STRING,
+	}
+	field3 := segment.SimpleFieldInfo{
+		FieldName: "title",
+		FieldType: utils.IDX_TYPE_STRING_SEG,
+	}
 
+	// 添加索引
 	err = index.AddField(field1)
 	err = index.AddField(field2)
 	err = index.AddField(field3)
+	// 删除索引
+	err = index.DeleteField("year")
 }
 
 func TestDeleteField(t *testing.T) {
@@ -39,9 +42,9 @@ func TestDeleteField(t *testing.T) {
 	if err != nil {
 		fmt.Printf("err happen: %v", err)
 	}
-	index := gdindex.NewIndexFromLocalFile("wechat", utils.IDX_ROOT_PATH, logger)
+	index := gdindex.NewIndexFromLocalFile("gk", utils.IDX_ROOT_PATH, logger)
 
-	err = index.DeleteField("time")
+	err = index.DeleteField("year")
 	if err != nil {
 		fmt.Printf("err happen: %v", err)
 	}
