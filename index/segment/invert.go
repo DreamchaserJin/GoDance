@@ -23,7 +23,7 @@ import (
 type invert struct {
 	curDocId      uint64
 	isMemory      bool
-	fieldType     uint32
+	fieldType     uint64
 	fieldName     string
 	idxMmap       *utils.Mmap
 	memoryHashMap map[string][]utils.DocIdNode
@@ -44,7 +44,7 @@ type invert struct {
 //	return ivt
 //}
 
-func newEmptyInvert(fieldType uint32, startDocId uint64, fieldName string, logger *utils.Log4FE) *invert {
+func newEmptyInvert(fieldType uint64, startDocId uint64, fieldName string, logger *utils.Log4FE) *invert {
 	ivt := &invert{
 		curDocId:      startDocId,
 		isMemory:      true,
@@ -57,7 +57,7 @@ func newEmptyInvert(fieldType uint32, startDocId uint64, fieldName string, logge
 	return ivt
 }
 
-func newInvertFromLocalFile(fieldType uint32, fieldName, segmentName string,
+func newInvertFromLocalFile(fieldType uint64, fieldName, segmentName string,
 	idxMmap *utils.Mmap, logger *utils.Log4FE) *invert {
 	ivt := &invert{
 		isMemory:  false,

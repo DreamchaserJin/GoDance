@@ -5,6 +5,9 @@ import (
 	"GoDance/utils"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
+	"time"
 )
 
 type GoDanceEngine struct {
@@ -37,6 +40,7 @@ const (
 	QueryError         string = "查询条件有问题，请检查查询条件"
 	IndexNotFound      string = "未找到对应的索引"
 	OK                 string = `{"status":"OK"}`
+	NotFound           string = `{"status":"NotFound"}`
 	Fail               string = `{"status":"Fail"}`
 )
 
@@ -136,6 +140,94 @@ func (gde *GoDanceEngine) DocumentOptions(method string, params map[string]strin
 
 // Search todo 搜索
 // @Description
-func (gde *GoDanceEngine) Search(params map[string]string) {
+func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
+	var shows []string
+	startTime := time.Now()
+	indexName, hasIndex := params["index"]
+	pageSize, hasPageSize := params["pageSize"]
+	curPage, hasCurPage := params["curPage"]
 
+	sortMethod, hasSort := params["sort"]
+
+	if !hasIndex || !hasPageSize || !hasCurPage {
+		return Fail, errors.New(ParamsError)
+	}
+
+	//获取索引
+	indexer := gde.idxManager.GetIndex(indexName)
+	if indexer == nil {
+		return NotFound, errors.New(IndexNotFound)
+	}
+
+	for field, value := range params {
+
+	}
+
+	docNodes := make([]utils.DocIdNode, 0)
+
+	lens := int64(len(docNodes))
+	if lens == 0 {
+		return NotFound, nil
+	}
+
+	//计算起始和终止位置
+	start, end, err := gde.calcStartEnd(pageSize, curPage, lens)
+	if err != nil {
+		return NotFound, nil
+	}
+
+	var resultSet DefaultResult
+
+	resultSet.Results = make([]map[string]string, 0)
+	for _, docNode := range docNodes[start:end] {
+		doc, ok := indexer.GetDocument(docNode.Docid)
+		if ok {
+			resultSet.Results = append(resultSet.Results, doc)
+		}
+	}
+
+	resultSet.From = start + 1
+	resultSet.To = end
+	resultSet.Status = "OK"
+	resultSet.TotalCount = lens
+	endTime := time.Now()
+	resultSet.CostTime = fmt.Sprintf("%v", endTime.Sub(startTime))
+
+	r, err := json.Marshal(resultSet)
+	if err != nil {
+		return NotFound, err
+	}
+
+	return string(r), nil
+}
+
+func (gde *GoDanceEngine) calcStartEnd(ps, cp string, docSize int64) (int64, int64, error) {
+
+	pageSize, ok1 := strconv.ParseInt(ps, 0, 0)
+	curPage, ok2 := strconv.ParseInt(cp, 0, 0)
+	if ok1 != nil || ok2 != nil {
+		pageSize = 10
+		curPage = 1
+	}
+
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
+	if curPage <= 0 {
+		curPage = 1
+	}
+
+	start := curPage * (pageSize - 1)
+	end := curPage * pageSize
+
+	if start >= docSize {
+		return 0, 0, fmt.Errorf("out page")
+	}
+
+	if end > docSize {
+		end = docSize
+	}
+
+	return start, end, nil
 }
