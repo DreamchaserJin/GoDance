@@ -49,9 +49,9 @@ func newEmptyFakeProfile(fieldName string, fieldType, start, cur uint64, logger 
 		fieldName:  fieldName,
 		pflNumber:  make([]int64, 0),
 		pflString:  make([]string, 0),
+		pflFloat:   make([]float64, 0),
 		Logger:     logger,
 	}
-
 	return pfl
 }
 
@@ -71,6 +71,7 @@ func newEmptyProfile(fieldName string, fieldType, start uint64, logger *utils.Lo
 		fieldName:  fieldName,
 		pflNumber:  make([]int64, 0),
 		pflString:  make([]string, 0),
+		pflFloat:   make([]float64, 0),
 		Logger:     logger,
 	}
 	return pfl

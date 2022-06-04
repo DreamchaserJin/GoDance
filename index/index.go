@@ -659,8 +659,9 @@ func (idx *Index) storeIndex() error {
 	if err := utils.WriteToJson(idx, metaFileName); err != nil {
 		return err
 	}
-
-	idx.primary.SetBatch(idx.PrimaryKey, idx.pkMap)
+	if idx.PrimaryKey != "" {
+		idx.primary.SetBatch(idx.PrimaryKey, idx.pkMap)
+	}
 
 	idx.pkMap = nil
 	idx.pkMap = make(map[int64]string)

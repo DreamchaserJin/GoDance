@@ -168,6 +168,14 @@ func (f *Field) addDocument(docId uint64, contentStr string) error {
 	return nil
 }
 
+//
+//  query
+//  @Description: 查询倒排索引
+//  @receiver f
+//  @param key
+//  @return []utils.DocIdNode
+//  @return bool
+//
 func (f *Field) query(key string) ([]utils.DocIdNode, bool) {
 	if f.ivt == nil {
 		return nil, false
@@ -176,6 +184,14 @@ func (f *Field) query(key string) ([]utils.DocIdNode, bool) {
 	return f.ivt.queryTerm(fmt.Sprintf("%v", key))
 }
 
+//
+//  queryFilter
+//  @Description: 查询正排索引
+//  @receiver f
+//  @param filter
+//  @return []uint64
+//  @return bool
+//
 func (f *Field) queryFilter(filter utils.SearchFilters) ([]uint64, bool) {
 	if f.pfi == nil {
 		return nil, false
