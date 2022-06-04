@@ -1,15 +1,10 @@
 package cluster
 
 import (
-	"GoDance/configs"
 	"context"
-	"github.com/smallnest/rpcx/server"
-	"math/rand"
 	"sync"
 	"time"
 )
-
-const Port = "8972"
 
 var (
 	//上一次投票的任期
@@ -22,91 +17,59 @@ var (
 	serverMutex sync.RWMutex
 )
 
-func init() {
-	heartBeat = time.Now()
-	// register RaftServer
-	s := server.NewServer()
-	s.RegisterName("RaftServe", new(Server), "")
-	s.Serve("tcp", ":"+Port)
-	go func() {
-		config := configs.Config.Cluster
-		baseTime := config.HeartBeatMin
-		random := config.HeartBeatMax - config.HeartBeatMin
-		for {
-			//todo 根据配置设置随机超时时间
-			//定期检查主节点是否近期发送过探活请求
-			randomTimeOut := rand.Intn(random) + baseTime
-			//如果超时没收到心跳
-			if time.Now().Sub(heartBeat).Milliseconds() > int64(randomTimeOut) {
-				//如果是候选节点则开始选举自己为主节点
-				if State.selfState.isMaster {
-					tryElection()
-				} else {
-					tryJoin()
-				}
-			}
-			time.Sleep(time.Duration(random))
-		}
-	}()
-
-}
-
 type Server struct {
 }
 
-//todo 修改version为logId
-type voteArgs struct {
+type VoteArgs struct {
 	//任期
-	term int64
+	Term int64
 	//最新增加的日志id
-	logId uint64
+	LogId uint64
 	//最新提交日志ID
-	committedId uint64
+	CommittedId uint64
 	//nodeID
-	id int64
+	Id int64
 }
-type voteReply struct {
-	success bool
+type VoteReply struct {
+	Success bool
 }
 
 // RequestVote 请求投票，候选节点通过rpc远程调用从节点的拉票方法来获取票数
-func (s *Server) RequestVote(ctx context.Context, r *voteArgs, res *voteReply) error {
+func (s *Server) RequestVote(ctx context.Context, r *VoteArgs, res *VoteReply) error {
 	//重置心跳
 	heartBeat = time.Now()
 	defer serverMutex.RUnlock()
 	serverMutex.RLock()
 	//之前相同任期内投过票的节点也会投票，此举是为了保证幂等性
-	if votedNodes[r.id] == r.term {
-		res.success = true
+	if votedNodes[r.Id] == r.Term {
+		res.Success = true
 		return nil
 	}
 	//日志完整度大于等于自身且超过自身投过的任期时，才会支持该节点
-	if r.logId >= latestLog && r.committedId > latestCommitted && r.term > lastTerm {
+	if r.LogId >= latestLog && r.CommittedId > latestCommitted && r.Term > lastTerm {
 		defer serverMutex.Unlock()
 		serverMutex.Lock()
-		lastTerm = r.term
-		votedNodes[r.id] = r.term
-		res.success = true
+		lastTerm = r.Term
+		votedNodes[r.Id] = r.Term
+		res.Success = true
 	}
-	res.success = false
+	res.Success = false
 	return nil
 }
 
-type heartArgs struct {
+type HeartArgs struct {
 	//latest log id(committed)
-	logEntryId uint64
+	LogEntryId uint64
 	//任期
-	term int64
-	//元数据
-	version int64
+	Term int64
 	//nodeID
-	id int64
+	Id int64
 }
 
 // HeartReply 探活请求（日志增加请求）
 type HeartReply struct {
 	//是否承认该节点
-	success bool
+	Success bool
 	//接受到探活请求的任期
 	Term int64
 	//节点状态
@@ -119,17 +82,17 @@ type HeartReply struct {
 
 // HeatBeat 探活请求，由主节点来调用此RPC方法
 //同时此Rpc调用也负责日志的同步
-func (s *Server) HeatBeat(ctx context.Context, r *heartArgs, res *HeartReply) error {
+func (s *Server) HeatBeat(ctx context.Context, r *HeartArgs, res *HeartReply) error {
 	self := State.selfState
 	res.State = State.selfState.state
 	//如果发现小于自己任期时，拒绝承认该节点
-	if self.masterId != r.id && r.term < self.term {
+	if self.masterId != r.Id && r.Term < self.term {
 		res.Term = State.selfState.term
 		return nil
 	}
 	//当发现探活请求的主节点和自己认为的主节点不一致且任期比自己的大时，切换主节点
-	if self.masterId != r.id && r.term > self.term {
-		self.masterId = r.id
+	if self.masterId != r.Id && r.Term > self.term {
+		self.masterId = r.Id
 		//退出主节点时需要主动关闭clients
 		for _, c := range clients {
 			c.client.Close()
@@ -144,8 +107,8 @@ func (s *Server) HeatBeat(ctx context.Context, r *heartArgs, res *HeartReply) er
 }
 
 type EntryArgs struct {
-	preNode int
-	LogEntry
+	PreNode  int
+	LogEntry LogEntry
 }
 
 // AppendEntry RPC called by leader
@@ -195,15 +158,16 @@ type CommonReply struct {
 type QueryArgs struct {
 }
 type QueryReply struct {
-	LeaderIp string
+	//领导者的地址（ip+port）
+	LeaderAddress string
 }
 
 // SeedQuery 种子节点查询rpc，由找不到主节点的跟随者或者刚启动的节点调用，返回当前集群的主节点
-func SeedQuery(ctx context.Context, args *QueryArgs, reply *QueryReply) {
+func (s *Server) SeedQuery(ctx context.Context, args *QueryArgs, reply *QueryReply) {
 	//若当前节点暂时没有Leader
 	if State.selfState.state == Candidate || State.selfState.state == NoLeader {
-		reply.LeaderIp = ""
+		reply.LeaderAddress = ""
 	} else {
-		reply.LeaderIp = State.getMasterIP()
+		reply.LeaderAddress = State.getMasterAddress()
 	}
 }

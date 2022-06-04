@@ -10,18 +10,17 @@ import (
 
 type operation int
 
-//linked list of tranLog
 var (
 	//日志数组
 	logs []LogEntry
 	//日志id到数组索引下标的映射
-	id2index map[uint64]int
+	id2index = map[uint64]int{}
 	//上一次提交的日志id，当提交日志id一样时，意味着state肯定是一致的
 	latestCommitted uint64
 	//最近一次增加的日志id
 	latestLog uint64
 	//用于控制日志增加的逻辑
-	logMutex sync.Mutex
+	logMutex = sync.Mutex{}
 )
 
 /**
@@ -52,15 +51,20 @@ type LogEntry struct {
 	Committed bool
 }
 
-// AddNode  增加一个节点，这里的逻辑保证Leader节点中每一条记录都是最终的
+// AddNode  增加一个节点，如果增加成功，则增加一条clients这里的逻辑保证Leader节点中每一条记录都是最终的
 //这里只能由领导者调用
 func AddNode(n *node) bool {
-	return appendClusterLog(NodeAdd, *n)
+	r := appendClusterLog(NodeAdd, *n)
+	if r {
+		appendClient(n)
+	}
+	return r
 }
 
 // DeleteNode  删除一个节点
 // 这里只能由领导者调用
 func DeleteNode(nodeId int64) bool {
+	//todo 删除一个节点同时要删除对应client
 	return appendClusterLog(NodeDelete, nodeId)
 }
 
@@ -155,12 +159,11 @@ func appendClusterLog(op operation, object any) bool {
 	appendLog(&entry)
 	var (
 		//number of successes
-		num uint32 = 0
+		num uint32 = 1
 		//number of done
-		dnum uint32 = 0
+		dnum uint32 = 1
 		//controlling log replication results
-		//todo there may be resource leakage here
-		ch chan int
+		ch = make(chan int, 1)
 	)
 	for i := range clients {
 		c := clients[i]
@@ -185,6 +188,10 @@ func appendClusterLog(op operation, object any) bool {
 				}
 			}
 		}()
+	}
+	//避免单节点时出现永久堵塞情况
+	if num >= configs.Config.Cluster.ElectionMin {
+		ch <- 1
 	}
 	//goroutine will block until condition isMasterNode reached
 	<-ch

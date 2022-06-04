@@ -1,10 +1,7 @@
 package cluster
 
 import (
-	"GoDance/configs"
-	"log"
 	"sync"
-	"time"
 )
 
 var (
@@ -12,41 +9,20 @@ var (
 	State state
 )
 
-func init() {
-	config := configs.Config.Cluster
-	ip, err := GetOutBoundIP()
-	if err != nil {
-		log.Fatal("启动失败，原因：获取本地IP失败")
-	}
-	State = state{
-		selfState: selfState{
-			nodeId:     time.Now().UnixNano(),
-			nodeName:   ip,
-			address:    ip,
-			attributes: nil,
-			seedNodes:  config.SeedNodes,
-			state:      Follower,
-			masterId:   0,
-			term:       0,
-			isData:     config.Data,
-			isMaster:   config.Master,
-		},
-	}
-	//todo 向种子节点发起请求，查看是否是否有主节点，同时获取别人的集群状态
-	tryJoin()
-
-}
-
 type state struct {
 	clusterState clusterState
 	selfState    selfState
 	// Mutex 用于控制读写
-	stateMutex sync.RWMutex
+	//stateMutex sync.RWMutex
 }
 
-//获取当前主节点IP地址
-func (state *state) getMasterIP() string {
-	return state.clusterState.Nodes.nodes[state.clusterState.MasterId].address
+//获取当前主节点地址(IP+port)
+func (state *state) getMasterAddress() string {
+	n := state.clusterState.Nodes.nodes[state.clusterState.MasterId]
+	if n == nil {
+		return ""
+	}
+	return n.address + n.port
 }
 
 type selfState struct {
@@ -56,6 +32,8 @@ type selfState struct {
 	nodeName string
 	//主机地址
 	address string
+	//主机端口
+	port string
 	//节点参数
 	attributes map[string]string
 	//Address of theed node(ip)
@@ -82,9 +60,9 @@ type selfState struct {
 **/
 type clusterState struct {
 	//protects following,Ensure write consistency
-	mutex sync.Mutex
+	clusterMutex sync.Mutex
 	//当前版本号，每次更新加1
-	version int64
+	//version int64
 	//主节点任期
 	term int64
 	// MasterId 当前的主节点ID
@@ -109,14 +87,12 @@ type ShardRooting struct {
 }
 
 func (c *clusterState) addNode(np *node) {
-	c.mutex.Lock()
+	c.clusterMutex.Lock()
 	c.Nodes.AddNode(np)
-	c.version += 1
-	c.mutex.Unlock()
+	c.clusterMutex.Unlock()
 }
 func (c *clusterState) deleteNode(id int64) {
-	c.mutex.Lock()
+	c.clusterMutex.Lock()
 	c.Nodes.DeleteNode(id)
-	c.version += 1
-	c.mutex.Unlock()
+	c.clusterMutex.Unlock()
 }

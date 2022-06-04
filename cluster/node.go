@@ -27,6 +27,8 @@ type node struct {
 	nodeId int64
 	//主机地址
 	address string
+	//主机端口
+	port string
 	//节点参数
 	attributes map[string]string
 	//节点状态
