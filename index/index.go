@@ -338,7 +338,7 @@ func (idx *Index) UpdateDocument(content map[string]string) error {
 		return errors.New("doc has been deleted or not exist")
 	}
 	if ok {
-		success := idx.bitmap.SetBit(uint64(oldDocId), 1)
+		success := idx.bitmap.SetBit(oldDocId, 1)
 		if success {
 			idx.deleteDocumentByDocId(oldDocId)
 		}
@@ -692,7 +692,7 @@ func (idx *Index) updatePrimaryKey(key int64, docId uint64) error {
 		return errors.New("[ERROR] primaryKey is not exist")
 	}
 
-	err := idx.primary.Set(idx.PrimaryKey, key, uint64(docId))
+	err := idx.primary.Set(idx.PrimaryKey, key, docId)
 
 	if err != nil {
 		idx.Logger.Error("[ERROR] update Put key error : %v", err)
@@ -703,16 +703,19 @@ func (idx *Index) updatePrimaryKey(key int64, docId uint64) error {
 
 func (idx *Index) deleteDocumentByDocId(docId uint64) {
 	idx.DelDocNum++
-	buf := make([]byte, 4)
+	buf := make([]byte, 8)
 
 	binary.LittleEndian.PutUint64(buf, docId)
 	delFileName := fmt.Sprintf("%v%v.del", idx.PathName, idx.Name)
 	delFile, err := os.OpenFile(delFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	defer delFile.Close()
+
 	if err != nil {
 		idx.Logger.Error("[ERROR] Open DelFile Error : %v", err)
 	}
 
 	_, err = delFile.Write(buf)
+
 	if err != nil {
 		idx.Logger.Error("[ERROR] Write DelFile Error : %v", err)
 	}
