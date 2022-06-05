@@ -59,7 +59,7 @@ func TestAddDocument(t *testing.T) {
 	index := gdindex.NewIndexFromLocalFile("gk", utils.IDX_ROOT_PATH, logger)
 
 	content := make(map[string]string, 0)
-	csvTable := utils.LoadCsvFile("/home/iceberg/桌面/高考作文1.csv", 1)
+	csvTable := utils.LoadCsvFile("/home/iceberg/桌面/高考作文.csv", 1)
 	for _, val := range csvTable.Records {
 		content["year"] = val.GetString("year")
 		content["region"] = val.GetString("region")
@@ -127,7 +127,7 @@ func TestMergeSegment(t *testing.T) {
 	if err != nil {
 		fmt.Printf("err happen: %v", err)
 	}
-	index := gdindex.NewIndexFromLocalFile("wechat", utils.IDX_ROOT_PATH, logger)
+	index := gdindex.NewIndexFromLocalFile("gk", utils.IDX_ROOT_PATH, logger)
 
 	index.MergeSegments(-1)
 

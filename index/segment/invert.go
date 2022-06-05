@@ -116,7 +116,7 @@ func (ivt *invert) serialization(segmentName string, btree *tree.BTreeDB) error 
 	// fst存储文件名
 	fstFileName := fmt.Sprintf("%v%v_invert.fst", segmentName, ivt.fieldName)
 	// 打开fst文件
-	fstFd, err := os.OpenFile(fstFileName, os.O_CREATE|os.O_RDWR, 0644)
+	fstFd, err := os.OpenFile(fstFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
 		return err
 	}
@@ -167,6 +167,7 @@ func (ivt *invert) serialization(segmentName string, btree *tree.BTreeDB) error 
 
 		idxFd.Write(stringBuffer.Bytes())
 		leafNodes[key] = nowOffset
+		keys = append(keys, key)
 
 		// 不用b+树存倒排索引了
 		//ivt.btree.Set(ivt.fieldName, key, nowOffset)

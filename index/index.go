@@ -420,6 +420,8 @@ func (idx *Index) SyncMemorySegment() error {
 	newSegment := segment.NewSegmentFromLocalFile(segmentName, idx.Logger)
 
 	idx.segments = append(idx.segments, newSegment)
+	// 添加segmentNames
+	idx.SegmentNames = append(idx.SegmentNames, segmentName)
 
 	return idx.storeIndex()
 

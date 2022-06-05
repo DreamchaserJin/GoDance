@@ -256,33 +256,33 @@ func (f *Field) serialization(segmentName string, btdb *tree.BTreeDB) error {
 		}
 	}
 
-	var err error
-	f.idxMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_invert.idx", segmentName, f.fieldName), utils.MODE_APPEND)
-	if err != nil {
-		f.Logger.Error("[ERROR] Mmap error : %v", err)
-	}
-	f.idxMmap.SetFileEnd(0)
-	f.Logger.Debug("[INFO] Load Invert File : %v%v_invert.idx", segmentName, f.fieldName)
-
-	f.pflMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_profile.pfl", segmentName, f.fieldName), utils.MODE_APPEND)
-	if err != nil {
-		f.Logger.Error("[ERROR] Mmap error : %v", err)
-	}
-	f.pflMmap.SetFileEnd(0)
-
-	f.pfiMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_profileindex.pfi", segmentName, f.fieldName), utils.MODE_APPEND)
-	if err != nil {
-		f.Logger.Error("[ERROR] Mmap error : %v", err)
-	}
-	f.pfiMmap.SetFileEnd(0)
-
-	f.dtlMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_detail.dtl", segmentName, f.fieldName), utils.MODE_APPEND)
-	if err != nil {
-		f.Logger.Error("[ERROR] Mmap error : %v", err)
-	}
-	f.dtlMmap.SetFileEnd(0)
-
-	f.setMmap()
+	//var err error
+	//f.idxMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_invert.idx", segmentName, f.fieldName), utils.MODE_APPEND)
+	//if err != nil {
+	//	f.Logger.Error("[ERROR] Mmap error : %v", err)
+	//}
+	//f.idxMmap.SetFileEnd(0)
+	//f.Logger.Debug("[INFO] Load Invert File : %v%v_invert.idx", segmentName, f.fieldName)
+	//
+	//f.pflMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_profile.pfl", segmentName, f.fieldName), utils.MODE_APPEND)
+	//if err != nil {
+	//	f.Logger.Error("[ERROR] Mmap error : %v", err)
+	//}
+	//f.pflMmap.SetFileEnd(0)
+	//
+	//f.pfiMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_profileindex.pfi", segmentName, f.fieldName), utils.MODE_APPEND)
+	//if err != nil {
+	//	f.Logger.Error("[ERROR] Mmap error : %v", err)
+	//}
+	//f.pfiMmap.SetFileEnd(0)
+	//
+	//f.dtlMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_detail.dtl", segmentName, f.fieldName), utils.MODE_APPEND)
+	//if err != nil {
+	//	f.Logger.Error("[ERROR] Mmap error : %v", err)
+	//}
+	//f.dtlMmap.SetFileEnd(0)
+	//
+	//f.setMmap()
 
 	f.Logger.Info("[INFO] Field %v Serialization Finish", f.fieldName)
 
