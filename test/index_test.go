@@ -82,8 +82,17 @@ func TestFst(t *testing.T) {
 	maxKey, _ := fst.GetMaxKey()
 	iterator, _ := fst.Iterator(minKey, append(maxKey, []byte("#")...))
 	for err == nil {
-		current, u := iterator.Current()
-		fmt.Printf("key: %v, offset: %v\n", string(current), u)
+		key, offset := iterator.Current()
+		fmt.Printf("key: %v, offset: %v\n", string(key), offset)
+
+		idxMmap, err := utils.NewMmap("./data/gk_1001/title_invert.idx", utils.MODE_APPEND)
+		if err != nil {
+			panic(err)
+		}
+		idxMmap.SetFileEnd(0)
+		lens := idxMmap.ReadInt64(int64(offset))
+		res := idxMmap.ReadDocIdsArry(uint64(offset)+8, uint64(lens))
+		fmt.Println(res)
 		err = iterator.Next()
 	}
 }
@@ -99,7 +108,7 @@ func TestSearch(t *testing.T) {
 
 	q1 := utils.SearchQuery{
 		FieldName: "title",
-		Value:     "是",
+		Value:     "反动",
 	}
 
 	//q2 := utils.SearchQuery{
