@@ -138,7 +138,7 @@ func (pfl *profile) addDocument(docId uint64, contentStr string) error {
 	} else {
 		pfl.pflString = append(pfl.pflString, contentStr)
 	}
-
+	pfl.maxDocId++
 	return nil
 }
 
