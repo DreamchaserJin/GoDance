@@ -228,7 +228,6 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	// todo 对 docQueryNodes 和 docFilterIds求交集, 注意类型 []DocIdNode 和 []uint64
 	// 使用 bool模型汇总
 	docMergeFilter := boolea.DocMergeFilter(docQueryNodes, docFilterIds, notDocQueryNodes)
-	fmt.Println(docMergeFilter)
 
 	lens := int64(len(docMergeFilter))
 	if lens == 0 {
