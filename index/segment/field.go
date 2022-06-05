@@ -88,6 +88,7 @@ func newFieldFromLocalFile(fieldName, segmentName string, start, max uint64,
 		btree:      btree,
 		Logger:     logger,
 	}
+	// todo 修改mmap加载逻辑，以下文件没有必要全部加载
 	var err error
 	f.idxMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_invert.idx", segmentName, f.fieldName), utils.MODE_APPEND)
 	if err != nil {
