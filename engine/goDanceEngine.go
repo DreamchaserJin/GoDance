@@ -145,23 +145,32 @@ func (gde *GoDanceEngine) DocumentOptions(method string, params map[string]strin
 }
 
 // RelatedSearch
+// @Description 实时搜索返回内容<=10
+// @Param key  关键词
+// @Return string  json格式的返回结果
+// @Return error 任何错误
+func (gde *GoDanceEngine) RealTimeSearch(key string) (string, error) {
+
+	search := gde.trie.Search(key, true)
+	results, err := json.Marshal(search)
+	if err == nil {
+		return string(results), err
+	}
+
+	return "", nil
+}
+
+// RelatedSearch
 // @Description 相关搜索返回10个内容
 // @Param key  关键词
 // @Return string  json格式的返回结果
 // @Return error 任何错误
 func (gde *GoDanceEngine) RelatedSearch(key string) (string, error) {
 
-	search := gde.trie.Search(key)
-	if len(search) <= 10 {
-		results, err := json.Marshal(search)
-		if err == nil {
-			return string(results), err
-		}
-	} else {
-		results, err := json.Marshal(search[:10])
-		if err == nil {
-			return string(results), err
-		}
+	search := gde.trie.Search(key, false)
+	results, err := json.Marshal(search)
+	if err == nil {
+		return string(results), err
 	}
 
 	return "", nil
