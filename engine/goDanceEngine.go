@@ -319,7 +319,9 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 
 		default:
 			segmenter := utils.GetGseSegmenter()
-			var terms []string
+			var terms = make([]string, 0)
+
+			// todo value 加进 Trie 树
 
 			fieldType, ok := idx.Fields[param]
 			if ok {
