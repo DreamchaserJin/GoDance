@@ -94,7 +94,6 @@ func TestSearch(t *testing.T) {
 	q1 := utils.SearchQuery{
 		FieldName: "content",
 		Value:     "南昌",
-		Type:      utils.IDX_TYPE_STRING_SEG,
 	}
 
 	//q2 := utils.SearchQuery{

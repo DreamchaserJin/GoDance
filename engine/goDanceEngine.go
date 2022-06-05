@@ -1,6 +1,7 @@
 package engine
 
 import (
+	gdindex "GoDance/index"
 	"GoDance/index/segment"
 	"GoDance/utils"
 	"encoding/json"
@@ -158,8 +159,9 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	}
 
 	// 建立过滤条件和搜索条件
-	searchFilters, searchQueries := gde.parseParams(params)
+	searchFilters, searchQueries, notSearchQueries := gde.parseParams(params, idx)
 	docQueryNodes := make([]utils.DocIdNode, 0)
+	notDocQueryNodes := make([]utils.DocIdNode, 0)
 	docFilterIds := make([]uint64, 0)
 
 	// todo 对每个 ids 求交集
@@ -179,8 +181,15 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	}
 
 	// todo 需要建立一个关键词过滤的集合
+	for _, query := range notSearchQueries {
+		ids, ok := idx.SearchKeyDocIds(query)
+		if ok {
+			notDocQueryNodes = append(notDocQueryNodes, ids...)
+		}
+	}
 
 	// todo 对 docQueryNodes 和 docFilterIds求交集, 注意类型 []DocIdNode 和 []uint64
+	// 使用 bool模型汇总
 
 	lens := int64(len(docQueryNodes))
 	if lens == 0 {
@@ -249,12 +258,14 @@ func (gde *GoDanceEngine) calcStartEnd(ps, cp string, docSize int64) (int64, int
 	return start, end, nil
 }
 
-func (gde *GoDanceEngine) parseParams(params map[string]string) ([]utils.SearchFilters, []utils.SearchQuery) {
+func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Index) ([]utils.SearchFilters, []utils.SearchQuery, []utils.SearchQuery) {
 
 	searchFilters := make([]utils.SearchFilters, 0)
 	searchQueries := make([]utils.SearchQuery, 0)
+	notSearchQueries := make([]utils.SearchQuery, 0)
 	for param, value := range params {
 
+		// todo 还有一些其余的请求参数
 		if param == "index" || param == "pageSize" || param == "curSize" {
 			continue
 		}
@@ -272,7 +283,7 @@ func (gde *GoDanceEngine) parseParams(params map[string]string) ([]utils.SearchF
 		case '>':
 			overValue, err := strconv.ParseInt(value, 10, 64)
 			if err != nil {
-				return nil, nil
+				continue
 			}
 
 			sf := utils.SearchFilters{FieldName: param[1:], Type: utils.FILT_OVER, Start: overValue}
@@ -280,7 +291,7 @@ func (gde *GoDanceEngine) parseParams(params map[string]string) ([]utils.SearchF
 		case '<':
 			lessValue, err := strconv.ParseInt(value, 10, 64)
 			if err != nil {
-				return nil, nil
+				continue
 			}
 			sf := utils.SearchFilters{FieldName: param[1:], Type: utils.FILT_LESS, Start: lessValue}
 			searchFilters = append(searchFilters, sf)
@@ -299,14 +310,27 @@ func (gde *GoDanceEngine) parseParams(params map[string]string) ([]utils.SearchF
 			}
 			searchFilters = append(searchFilters, utils.SearchFilters{FieldName: param[1:],
 				Type: utils.FILT_RANGE, Start: start, End: end})
+		case '_': // 关键词过滤 比如  _content : 南昌  就是过滤content字段中有南昌的
+			var query utils.SearchQuery
+			// 针对某个字段名的过滤
+			query.FieldName = param[1:]
+			query.Value = value
+			notSearchQueries = append(searchQueries, query)
+
 		default:
 			segmenter := utils.GetGseSegmenter()
-			terms := segmenter.CutSearch(value, false)
+			var terms []string
 
-			if len(terms) == 0 {
-				return nil, nil
+			fieldType, ok := idx.Fields[param]
+			if ok {
+				switch fieldType {
+				case utils.IDX_TYPE_STRING:
+					terms = append(terms, value)
+				case utils.IDX_TYPE_STRING_SEG:
+					terms = segmenter.CutSearch(value, false)
+				}
 			}
-			//this.Logger.Info("[INFO] SegmentTerms >>>  %v ", terms)
+
 			for _, term := range terms {
 				var query utils.SearchQuery
 				query.FieldName = param
@@ -316,5 +340,5 @@ func (gde *GoDanceEngine) parseParams(params map[string]string) ([]utils.SearchF
 		}
 	}
 
-	return searchFilters, searchQueries
+	return searchFilters, searchQueries, notSearchQueries
 }
