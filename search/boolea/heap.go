@@ -1,4 +1,4 @@
-package booleanmodel
+package boolea
 
 type BMHeap [][]int
 

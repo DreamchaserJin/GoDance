@@ -3,6 +3,8 @@ package engine
 import (
 	gdindex "GoDance/index"
 	"GoDance/index/segment"
+	"GoDance/search/boolea"
+	"GoDance/search/related"
 	"GoDance/utils"
 	"encoding/json"
 	"errors"
@@ -19,6 +21,7 @@ type GoDanceEngine struct {
 	MasterIP   string        // 主节点 IP
 	MasterPort int           // 主节点端口号
 	Logger     *utils.Log4FE `json:"-"`
+	trie       related.Trie
 }
 
 // DefaultResult
@@ -46,7 +49,7 @@ const (
 )
 
 func NewDefaultEngine(logger *utils.Log4FE) *GoDanceEngine {
-	this := &GoDanceEngine{Logger: logger, idxManager: newIndexManager(logger)}
+	this := &GoDanceEngine{Logger: logger, idxManager: newIndexManager(logger), trie: related.Constructor()}
 	return this
 }
 
@@ -161,8 +164,8 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	// 建立过滤条件和搜索条件
 	searchFilters, searchQueries, notSearchQueries := gde.parseParams(params, idx)
 	docQueryNodes := make([]utils.DocIdNode, 0)
-	notDocQueryNodes := make([]utils.DocIdNode, 0)
 	docFilterIds := make([]uint64, 0)
+	notDocQueryNodes := make([]utils.DocIdNode, 0)
 
 	// todo 对每个 ids 求交集
 	for _, query := range searchQueries {
@@ -190,6 +193,8 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 
 	// todo 对 docQueryNodes 和 docFilterIds求交集, 注意类型 []DocIdNode 和 []uint64
 	// 使用 bool模型汇总
+	docMergeFilter := boolea.DocMergeFilter(docQueryNodes, docFilterIds, notDocQueryNodes)
+	fmt.Println(docMergeFilter)
 
 	lens := int64(len(docQueryNodes))
 	if lens == 0 {
@@ -322,6 +327,7 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 			var terms = make([]string, 0)
 
 			// todo value 加进 Trie 树
+			gde.trie.Insert(value)
 
 			fieldType, ok := idx.Fields[param]
 			if ok {
