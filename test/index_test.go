@@ -5,8 +5,8 @@ import (
 	"GoDance/index/segment"
 	"GoDance/utils"
 	"fmt"
+	"github.com/blevesearch/vellum"
 	"testing"
-	"time"
 )
 
 func TestCreateIndex(t *testing.T) {
@@ -73,22 +73,33 @@ func TestAddDocument(t *testing.T) {
 	}
 }
 
-func TestPKSearch(t *testing.T) {
-	fmt.Println("test start")
+func TestFst(t *testing.T) {
+	fst, err := vellum.Open("./data/gk_1001/title_invert.fst")
+	if err != nil {
+		panic(err)
+	}
+	minKey, _ := fst.GetMinKey()
+	maxKey, _ := fst.GetMaxKey()
+	iterator, _ := fst.Iterator(minKey, append(maxKey, []byte("#")...))
+	for err == nil {
+		current, u := iterator.Current()
+		fmt.Printf("key: %v, offset: %v\n", string(current), u)
+		err = iterator.Next()
+	}
 }
 
 func TestSearch(t *testing.T) {
 	utils.GetDocIDsChan, utils.GiveDocIDsChan = utils.DocIdsMaker()
-	utils.GSegmenter = utils.NewSegmenter("/home/hz/GoProject/GoDanceEngine/GoDance/test/dictionary/dict.txt")
-	logger, err := utils.New("GD Engine")
+	//utils.GSegmenter = utils.NewSegmenter("/home/hz/GoProject/GoDanceEngine/GoDance/test/dictionary/dict.txt")
+	logger, err := utils.New("GDEngine")
 	if err != nil {
 		fmt.Printf("err happen: %v", err)
 	}
-	index := gdindex.NewIndexFromLocalFile("wechat", utils.IDX_ROOT_PATH, logger)
+	index := gdindex.NewIndexFromLocalFile("gk", utils.IDX_ROOT_PATH, logger)
 
 	q1 := utils.SearchQuery{
-		FieldName: "content",
-		Value:     "南昌",
+		FieldName: "title",
+		Value:     "是",
 	}
 
 	//q2 := utils.SearchQuery{
@@ -119,9 +130,8 @@ func TestSearch(t *testing.T) {
 		}
 	}
 
-	time.Sleep(1 * time.Hour)
-
 }
+
 func TestMergeSegment(t *testing.T) {
 	logger, err := utils.New("FalconSearcher")
 	if err != nil {

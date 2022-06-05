@@ -122,9 +122,12 @@ func (ivt *invert) serialization(segmentName string, btree *tree.BTreeDB) error 
 	}
 	// 保证fst文件可以关闭
 	defer fstFd.Close()
+
 	// 打开idx文件，用于存储memoryHashMap, 一个倒排字典
 	idxFileName := fmt.Sprintf("%v%v_invert.idx", segmentName, ivt.fieldName)
 	idxFd, err := os.OpenFile(idxFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	fi, _ := idxFd.Stat()
+	nowOffset := uint64(fi.Size())
 
 	if err != nil {
 		return err
@@ -145,13 +148,13 @@ func (ivt *invert) serialization(segmentName string, btree *tree.BTreeDB) error 
 	}(builder)
 
 	leafNodes := make(map[string]uint64)
-	nowOffset := uint64(0)
+
 	// 因为插入fst的key必须是有序的,所以需要记录memoryHashMap中的key值，以供排序
 	keys := make([]string, len(ivt.memoryHashMap))
 
 	for key, value := range ivt.memoryHashMap {
 
-		lens := len(key)
+		lens := len(value)
 
 		lenBuffer := make([]byte, 8)
 		binary.LittleEndian.PutUint64(lenBuffer, uint64(lens))
@@ -159,6 +162,7 @@ func (ivt *invert) serialization(segmentName string, btree *tree.BTreeDB) error 
 
 		stringBuffer := new(bytes.Buffer)
 
+		// todo 修改value写入文件逻辑
 		err = binary.Write(stringBuffer, binary.LittleEndian, value)
 		if err != nil {
 			ivt.Logger.Error("[Error] invert Serialization Error : %v", err)
@@ -172,7 +176,7 @@ func (ivt *invert) serialization(segmentName string, btree *tree.BTreeDB) error 
 		// 不用b+树存倒排索引了
 		//ivt.btree.Set(ivt.fieldName, key, nowOffset)
 
-		nowOffset += uint64(lens)*8 + 8
+		nowOffset += uint64(lens*utils.DOCNODE_SIZE) + 8
 	}
 	// 对key进行排序
 	sort.Strings(keys)
@@ -453,23 +457,6 @@ func (ivt *invert) mergeFSTIteratorList(segmentName string, mergeFSTNodes []*Fst
 	}
 	return nil
 }
-
-//func (ivt *invert) GetFirstKV() (string, uint64, uint32, int, bool) {
-//
-//	if ivt.btree == nil {
-//		return "", 0, 0, 0, false
-//	}
-//	return ivt.btree.GetFirstKV(ivt.fieldName)
-//}
-//
-//func (ivt *invert) GetNextKV(key string) (string, uint64, uint32, int, bool) {
-//
-//	if ivt.btree == nil {
-//		return "", 0, 0, 0, false
-//	}
-//
-//	return ivt.btree.GetNextKV(ivt.fieldName, key)
-//}
 
 func (ivt *invert) queryTerm(keyStr string) ([]utils.DocIdNode, bool) {
 
