@@ -162,7 +162,6 @@ func (ivt *invert) serialization(segmentName string, btree *tree.BTreeDB) error 
 
 		stringBuffer := new(bytes.Buffer)
 
-		// todo 修改value写入文件逻辑
 		err = binary.Write(stringBuffer, binary.LittleEndian, value)
 		if err != nil {
 			ivt.Logger.Error("[Error] invert Serialization Error : %v", err)
