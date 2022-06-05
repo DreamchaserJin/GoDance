@@ -1,7 +1,12 @@
 package main
 
 import (
+	"GoDance/engine"
+	"GoDance/utils"
+	"GoDance/web"
 	"flag"
+	"fmt"
+	"github.com/gin-gonic/gin"
 	"runtime"
 )
 
@@ -18,5 +23,16 @@ func main() {
 	flag.StringVar(&localip, "lip", "127.0.0.1", "本机ip地址，默认127.0.0.1")
 	flag.StringVar(&masterip, "mip", "127.0.0.1", "主节点ip地址，默认127.0.0.1")
 	flag.IntVar(&mport, "mp", 9990, "主节点端口，默认9990")
+
+	logger, err := utils.NewLogger("GoDanceEngine")
+	if err != nil {
+		fmt.Printf("[ERROR] Create logger Error: %v\n", err)
+		return
+	}
+
+	engine.Engine = engine.NewDefaultEngine(logger)
+
+	router := gin.Default()
+	web.Register(router)
 
 }

@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+var Engine *GoDanceEngine
+
 type GoDanceEngine struct {
 	idxManager *IndexManager
 	LocalIP    string        // 本地IP
@@ -142,6 +144,29 @@ func (gde *GoDanceEngine) DocumentOptions(method string, params map[string]strin
 	}
 }
 
+// RelatedSearch
+// @Description 相关搜索返回10个内容
+// @Param key  关键词
+// @Return string  json格式的返回结果
+// @Return error 任何错误
+func (gde *GoDanceEngine) RelatedSearch(key string) (string, error) {
+
+	search := gde.trie.Search(key)
+	if len(search) <= 10 {
+		results, err := json.Marshal(search)
+		if err == nil {
+			return string(results), err
+		}
+	} else {
+		results, err := json.Marshal(search[:10])
+		if err == nil {
+			return string(results), err
+		}
+	}
+
+	return "", nil
+}
+
 // Search todo 搜索
 // @Description
 func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
@@ -196,7 +221,7 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	docMergeFilter := boolea.DocMergeFilter(docQueryNodes, docFilterIds, notDocQueryNodes)
 	fmt.Println(docMergeFilter)
 
-	lens := int64(len(docQueryNodes))
+	lens := int64(len(docMergeFilter))
 	if lens == 0 {
 		return NotFound, nil
 	}
@@ -210,8 +235,8 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	var resultSet DefaultResult
 
 	resultSet.Results = make([]map[string]string, 0)
-	for _, docNode := range docQueryNodes[start:end] {
-		doc, ok := idx.GetDocument(docNode.Docid)
+	for _, docId := range docMergeFilter[start:end] {
+		doc, ok := idx.GetDocument(docId)
 		if ok {
 			resultSet.Results = append(resultSet.Results, doc)
 		}
