@@ -11,7 +11,7 @@ import (
 )
 
 // the client of all nodes(exclude itself)
-var clients []*nodeClient
+var clients map[int64]*nodeClient
 
 type nodeClient struct {
 	node *node
@@ -27,7 +27,7 @@ func tryElection() {
 	config := configs.Config.Cluster
 	masterNodes := State.clusterState.Nodes.masterNodes
 
-	clients = make([]*nodeClient, len(masterNodes))
+	clients = make(map[int64]*nodeClient, len(masterNodes))
 	for _, v := range masterNodes {
 		//exclude self
 		if v.nodeId == State.selfState.nodeId {
@@ -42,7 +42,7 @@ func tryElection() {
 		if err != nil {
 			log.Printf("failed to connect: %v", err)
 		}
-		clients = append(clients, c)
+		clients[v.nodeId] = c
 	}
 	// 选举
 	//Used to control vote results
@@ -134,7 +134,7 @@ func sendHeartBeats() {
 	nodes := State.clusterState.Nodes.nodes
 	for _, n := range nodes {
 		//skip MasterNode ,because the node isMasterNode in clients
-		if n.isMasterNode {
+		if _, ok := clients[n.nodeId]; ok {
 			continue
 		}
 		c := &nodeClient{
@@ -145,10 +145,9 @@ func sendHeartBeats() {
 		if err != nil {
 			log.Printf("heartBeat client init failed,dialing:%v", err)
 		}
-		clients = append(clients, c)
+		clients[n.nodeId] = c
 	}
-	for i := range clients {
-		c := clients[i]
+	for _, c := range clients {
 		//为每个节点开启一个协程,定时发送心跳
 		go sendHeartBeat(c)
 	}
@@ -255,10 +254,15 @@ func appendClient(n *node) {
 		node:   n,
 		client: NewClient(DefaultOption),
 	}
-	clients = append(clients, c)
+	clients[n.nodeId] = c
 	err := c.client.Connect("tcp", n.address+":"+n.port)
 	if err != nil {
 		log.Printf("failed to connect: %v", err)
 	}
 	go sendHeartBeat(c)
+}
+
+//增加一个发送心跳的PRC客户端
+func deleteClient(id int64) {
+	delete(clients, id)
 }

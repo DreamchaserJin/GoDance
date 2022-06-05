@@ -64,8 +64,12 @@ func AddNode(n *node) bool {
 // DeleteNode  删除一个节点
 // 这里只能由领导者调用
 func DeleteNode(nodeId int64) bool {
-	//todo 删除一个节点同时要删除对应client
-	return appendClusterLog(NodeDelete, nodeId)
+	//删除一个节点同时要删除对应client
+	r := appendClusterLog(NodeDelete, nodeId)
+	if r {
+		deleteClient(nodeId)
+	}
+	return r
 }
 
 // AppendSelfLog 自身节点增加一条日志记录
@@ -132,6 +136,8 @@ func (e *LogEntry) load2State() {
 			log.Println("LogEntry Conversion failed")
 		}
 		State.clusterState.deleteNode(id)
+		//todo 需要删除对应的client
+
 	case ShardAdd:
 
 	case ShardDelete:

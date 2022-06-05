@@ -16,5 +16,5 @@ GoDance整体采用主从架构，实现了Raft算法来保证元数据的一致
 - utils 工具包，比如对分词器或者其他工具的封装
 - web web服务模块，对外提供相对应的restful接口服务
 
-![搜索引擎分层架构图](https://cdn.jsdelivr.net/gh/BestDreamChaser/picture/img/202205211111001.png)
+![搜索引擎分层架构图](https://cdn.jsdelivr.net/gh/BestDreamChaser/picture/img/202206042209928.png)
 
