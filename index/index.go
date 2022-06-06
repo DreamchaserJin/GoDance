@@ -316,6 +316,7 @@ func (idx *Index) AddDocument(content map[string]string) (uint64, error) {
 		}
 
 	}
+	// todo 在段内文档数到达阈值时进行持久化
 	return docId, idx.memorySegment.AddDocument(docId, content)
 }
 
@@ -345,12 +346,12 @@ func (idx *Index) UpdateDocument(content map[string]string) error {
 		}
 	}
 
+	docId := idx.MaxDocId
+	idx.MaxDocId++
+
 	if err := idx.updatePrimaryKey(pk, oldDocId); err != nil {
 		return err
 	}
-
-	docId := idx.MaxDocId
-	idx.MaxDocId++
 	return idx.memorySegment.AddDocument(docId, content)
 }
 
@@ -521,7 +522,6 @@ func (idx *Index) MergeSegments() error {
 		end += 10
 	}
 
-	// todo 合并段时好像并没有删除段对应的文件
 	if origin > 0 {
 		idx.segments = idx.segments[:origin]
 		idx.SegmentNames = idx.SegmentNames[:origin]

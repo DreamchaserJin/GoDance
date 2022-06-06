@@ -314,7 +314,7 @@ func (ivt *invert) setIdxMmap(mmap *utils.Mmap) {
 //}
 
 func (ivt *invert) mergeInvert(inverts []*invert, segmentName string) error {
-	// TODO 测试
+
 	// 用于存放所有fst的迭代器
 	mergeFSTNodes := make([]*FstNode, len(inverts))
 
@@ -367,7 +367,6 @@ func (ivt *invert) mergeInvert(inverts []*invert, segmentName string) error {
 ******************************************************************************/
 func (ivt *invert) mergeFSTIteratorList(segmentName string, mergeFSTNodes []*FstNode) error {
 
-	// TODO Test测试
 	// 保存新段的倒排链
 	idxFileName := fmt.Sprintf("%v%v_invert.idx", segmentName, ivt.fieldName)
 	idxFd, err := os.OpenFile(idxFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
@@ -404,10 +403,13 @@ func (ivt *invert) mergeFSTIteratorList(segmentName string, mergeFSTNodes []*Fst
 
 	for fstHeap.Len() > 0 {
 		// 需要将重复的key统一处理
-		nodeList := make([]*FstNode, 1)
-		nodeList[0] = heap.Pop(&fstHeap).(*FstNode)
-		node := heap.Pop(&fstHeap).(*FstNode)
-		for node.Key == nodeList[len(nodeList)-1].Key {
+		nodeList := make([]*FstNode, 0)
+		nodeList = append(nodeList, heap.Pop(&fstHeap).(*FstNode))
+		var node *FstNode
+		if fstHeap.Len() > 0 {
+			node = heap.Pop(&fstHeap).(*FstNode)
+		}
+		for node != nil && node.Key == nodeList[len(nodeList)-1].Key {
 			nodeList = append(nodeList, node)
 			if fstHeap.Len() > 0 {
 				node = heap.Pop(&fstHeap).(*FstNode)

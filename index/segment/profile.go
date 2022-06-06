@@ -256,7 +256,7 @@ func (pfl *profile) mergeProfiles(profiles []*profile, segmentName string, delDo
 		}
 		lens = pfl.maxDocId - pfl.startDocId
 	} else {
-		dtlFileName := fmt.Sprintf("%v%v_detail.pfl", segmentName, pfl.fieldName)
+		dtlFileName := fmt.Sprintf("%v%v_detail.dtl", segmentName, pfl.fieldName)
 		dtlFd, err := os.OpenFile(dtlFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 		if err != nil {
 			return 0, err
