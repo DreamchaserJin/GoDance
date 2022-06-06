@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 )
 
 type IndexInfo struct {
@@ -32,9 +33,9 @@ func newIndexManager(logger *utils.Log4FE) *IndexManager {
 	}
 
 	// 如果之前有记录则进行反序列化
-	if utils.Exist(fmt.Sprintf("%v%v.mgt.meta", utils.IDX_ROOT_PATH, utils.GODANCEENGINE)) {
+	if utils.Exist(fmt.Sprintf("%v%v.idm.meta", utils.IDX_ROOT_PATH, utils.GODANCEENGINE)) {
 
-		metaFileName := fmt.Sprintf("%v%v.mgt.meta", utils.IDX_ROOT_PATH, utils.GODANCEENGINE)
+		metaFileName := fmt.Sprintf("%v%v.idm.meta", utils.IDX_ROOT_PATH, utils.GODANCEENGINE)
 		buffer, err := utils.ReadFromJson(metaFileName)
 		if err != nil {
 			return idm
@@ -49,6 +50,18 @@ func newIndexManager(logger *utils.Log4FE) *IndexManager {
 			idm.indexers[idxInfo.Name] = gdindex.NewIndexFromLocalFile(idxInfo.Name, idxInfo.Path, logger)
 		}
 	}
+
+	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		for {
+			<-ticker.C
+			for _, idx := range idm.indexers {
+				if idx.CheckMerge() {
+					idx.MergeSegments()
+				}
+			}
+		}
+	}()
 
 	idm.Logger.Info("[INFO]  New Index Manager ")
 	return idm
@@ -164,15 +177,4 @@ func (idm *IndexManager) sync(indexName string) error {
 	}
 
 	return idm.indexers[indexName].SyncMemorySegment()
-}
-
-func (idm *IndexManager) mergeIndex(indexName string) error {
-	idm.indexMapLocker.RLock()
-	defer idm.indexMapLocker.RUnlock()
-	if _, ok := idm.indexers[indexName]; !ok {
-		idm.Logger.Error("[ERROR] index[%v] not found", indexName)
-		return errors.New(fmt.Sprintf("[ERROR] index[%v] not found", indexName))
-	}
-
-	return idm.indexers[indexName].MergeSegments(-1)
 }

@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"strconv"
@@ -338,7 +339,7 @@ func (idx *Index) UpdateDocument(content map[string]string) error {
 		return errors.New("doc has been deleted or not exist")
 	}
 	if ok {
-		success := idx.bitmap.SetBit(uint64(oldDocId), 1)
+		success := idx.bitmap.SetBit(oldDocId, 1)
 		if success {
 			idx.deleteDocumentByDocId(oldDocId)
 		}
@@ -428,52 +429,35 @@ func (idx *Index) SyncMemorySegment() error {
 }
 
 // CheckMerge
-// @Description
-func (idx *Index) CheckMerge() {
+// @Description 判断是否需要合并段
+func (idx *Index) CheckMerge() bool {
+	num := 0
+	for _, seg := range idx.segments {
+		if seg.MaxDocId-seg.StartDocId < 1000000 {
+			num++
+			if num >= 10 {
+				return true
+			}
+		}
+	}
+	return false
 
 }
 
 // MergeSegments
 // @Description 合并段
-// @Param start  合并段的起点
 // @Return 任何error
-func (idx *Index) MergeSegments(start int) error {
-	startIdx := -1
+func (idx *Index) MergeSegments() error {
 
 	idx.segmentMutex.Lock()
 	defer idx.segmentMutex.Unlock()
 
-	if len(idx.segments) == 1 {
+	segSize := len(idx.segments)
+
+	if segSize == 1 {
 		return nil
 	}
 
-	// start 小于 0 ，从头开始检索
-	if start < 0 {
-		for i := range idx.segments {
-			if idx.segments[i].MaxDocId-idx.segments[i].StartDocId < 1000000 {
-				startIdx = i
-				break
-			}
-		}
-	} else {
-		if start > len(idx.segments)-1 {
-			return nil
-		}
-		startIdx = start
-	}
-
-	if startIdx == -1 {
-		return nil
-	}
-
-	needMergeSegments := idx.segments[startIdx:]
-
-	segmentName := fmt.Sprintf("%v%v_%v/", idx.PathName, idx.Name, idx.NextSegmentSuffix)
-	err := os.MkdirAll(segmentName, 0755)
-
-	if err != nil {
-		idx.Logger.Error("Mkdir error : %v", err)
-	}
 	fields := make(map[string]uint64)
 	for fieldName, fieldType := range idx.Fields {
 		if fieldType != utils.IDX_TYPE_PK {
@@ -481,42 +465,73 @@ func (idx *Index) MergeSegments(start int) error {
 		}
 	}
 
-	tmpSegment := segment.NewEmptySegmentByFieldsInfo(segmentName, needMergeSegments[0].StartDocId, fields, idx.Logger)
-	idx.NextSegmentSuffix++
-
-	if err := idx.storeIndex(); err != nil {
-		return err
+	start := 0
+	for start != segSize && idx.segments[start].MaxDocId-idx.segments[start].StartDocId > 1000000 {
+		start++
 	}
+	origin := start
+	end := start + 10
+
+	fn := float64(segSize-start) / 10
+	n := int(math.Ceil(fn))
+
 	delFileName := fmt.Sprintf("%v%v.del", idx.PathName, idx.Name)
 
 	delMmap, err := utils.NewMmap(delFileName, utils.MODE_APPEND)
 	if err != nil {
 		return err
 	}
-
 	delDocSet := delMmap.ReadIdsSet(0, idx.DelDocNum)
 
-	tmpSegment.MergeSegments(needMergeSegments, delDocSet)
+	tmpSegList := make([]*segment.Segment, 0)
+	tmpSegNameList := make([]string, 0)
 
-	tmpSegment.Close()
-	tmpSegment = nil
+	for i := 0; i < n; i++ {
 
-	for _, seg := range needMergeSegments {
-		seg.Destroy()
+		if i == n-1 {
+			end = segSize
+		}
+
+		needMergeSegments := idx.segments[start:end]
+
+		segmentName := fmt.Sprintf("%v%v_%v/", idx.PathName, idx.Name, idx.NextSegmentSuffix)
+		err := os.MkdirAll(segmentName, 0755)
+
+		if err != nil {
+			idx.Logger.Error("Mkdir error : %v", err)
+		}
+
+		tmpSegment := segment.NewEmptySegmentByFieldsInfo(segmentName, needMergeSegments[0].StartDocId, fields, idx.Logger)
+		idx.NextSegmentSuffix++
+
+		tmpSegment.MergeSegments(needMergeSegments, delDocSet)
+		tmpSegment.Close()
+
+		tmpSegment = nil
+
+		for _, seg := range needMergeSegments {
+			seg.Destroy()
+		}
+		tmpSegment = segment.NewSegmentFromLocalFile(segmentName, idx.Logger)
+
+		tmpSegList = append(tmpSegList, tmpSegment)
+		tmpSegNameList = append(tmpSegNameList, segmentName)
+
+		start += 10
+		end += 10
 	}
 
-	tmpSegment = segment.NewSegmentFromLocalFile(segmentName, idx.Logger)
 	// todo 合并段时好像并没有删除段对应的文件
-	if startIdx > 0 {
-		idx.segments = idx.segments[:startIdx]
-		idx.SegmentNames = idx.SegmentNames[:startIdx]
+	if origin > 0 {
+		idx.segments = idx.segments[:origin]
+		idx.SegmentNames = idx.SegmentNames[:origin]
 	} else {
 		idx.segments = make([]*segment.Segment, 0)
 		idx.SegmentNames = make([]string, 0)
 	}
 
-	idx.segments = append(idx.segments, tmpSegment)
-	idx.SegmentNames = append(idx.SegmentNames, segmentName)
+	idx.segments = append(idx.segments, tmpSegList...)
+	idx.SegmentNames = append(idx.SegmentNames, tmpSegNameList...)
 
 	delMmap.Unmap()
 	os.Truncate(delFileName, 0)
@@ -524,6 +539,99 @@ func (idx *Index) MergeSegments(start int) error {
 
 	return idx.storeIndex()
 }
+
+// 老版本代码
+//// MergeSegments
+//// @Description 合并段
+//// @Param start  合并段的起点
+//// @Return 任何error
+//func (idx *Index) MergeSegments(start int) error {
+//	startIdx := -1
+//
+//	idx.segmentMutex.Lock()
+//	defer idx.segmentMutex.Unlock()
+//
+//	if len(idx.segments) == 1 {
+//		return nil
+//	}
+//
+//	// start 小于 0 ，从头开始检索
+//	if start < 0 {
+//		for i := range idx.segments {
+//			if idx.segments[i].MaxDocId-idx.segments[i].StartDocId < 1000000 {
+//				startIdx = i
+//				break
+//			}
+//		}
+//	} else {
+//		if start > len(idx.segments)-1 {
+//			return nil
+//		}
+//		startIdx = start
+//	}
+//
+//	if startIdx == -1 {
+//		return nil
+//	}
+//
+//	needMergeSegments := idx.segments[startIdx:]
+//
+//	segmentName := fmt.Sprintf("%v%v_%v/", idx.PathName, idx.Name, idx.NextSegmentSuffix)
+//	err := os.MkdirAll(segmentName, 0755)
+//
+//	if err != nil {
+//		idx.Logger.Error("Mkdir error : %v", err)
+//	}
+//	fields := make(map[string]uint64)
+//	for fieldName, fieldType := range idx.Fields {
+//		if fieldType != utils.IDX_TYPE_PK {
+//			fields[fieldName] = fieldType
+//		}
+//	}
+//
+//	tmpSegment := segment.NewEmptySegmentByFieldsInfo(segmentName, needMergeSegments[0].StartDocId, fields, idx.Logger)
+//	idx.NextSegmentSuffix++
+//
+//	if err := idx.storeIndex(); err != nil {
+//		return err
+//	}
+//	delFileName := fmt.Sprintf("%v%v.del", idx.PathName, idx.Name)
+//
+//	delMmap, err := utils.NewMmap(delFileName, utils.MODE_APPEND)
+//	if err != nil {
+//		return err
+//	}
+//
+//	delDocSet := delMmap.ReadIdsSet(0, idx.DelDocNum)
+//
+//	tmpSegment.MergeSegments(needMergeSegments, delDocSet)
+//
+//	tmpSegment.Close()
+//	tmpSegment = nil
+//
+//	for _, seg := range needMergeSegments {
+//		seg.Destroy()
+//	}
+//
+//	tmpSegment = segment.NewSegmentFromLocalFile(segmentName, idx.Logger)
+//	// todo 合并段时好像并没有删除段对应的文件
+//	if startIdx > 0 {
+//		idx.segments = idx.segments[:startIdx]
+//		idx.SegmentNames = idx.SegmentNames[:startIdx]
+//	} else {
+//		idx.segments = make([]*segment.Segment, 0)
+//		idx.SegmentNames = make([]string, 0)
+//	}
+//
+//	idx.segments = append(idx.segments, tmpSegment)
+//	idx.SegmentNames = append(idx.SegmentNames, segmentName)
+//
+//	delMmap.Unmap()
+//	os.Truncate(delFileName, 0)
+//	idx.DelDocNum = 0
+//
+//	return idx.storeIndex()
+//}
 
 // Close
 // @Description 关闭索引，从内存中回收
@@ -692,7 +800,7 @@ func (idx *Index) updatePrimaryKey(key int64, docId uint64) error {
 		return errors.New("[ERROR] primaryKey is not exist")
 	}
 
-	err := idx.primary.Set(idx.PrimaryKey, key, uint64(docId))
+	err := idx.primary.Set(idx.PrimaryKey, key, docId)
 
 	if err != nil {
 		idx.Logger.Error("[ERROR] update Put key error : %v", err)
@@ -703,16 +811,19 @@ func (idx *Index) updatePrimaryKey(key int64, docId uint64) error {
 
 func (idx *Index) deleteDocumentByDocId(docId uint64) {
 	idx.DelDocNum++
-	buf := make([]byte, 4)
+	buf := make([]byte, 8)
 
 	binary.LittleEndian.PutUint64(buf, docId)
 	delFileName := fmt.Sprintf("%v%v.del", idx.PathName, idx.Name)
 	delFile, err := os.OpenFile(delFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	defer delFile.Close()
+
 	if err != nil {
 		idx.Logger.Error("[ERROR] Open DelFile Error : %v", err)
 	}
 
 	_, err = delFile.Write(buf)
+
 	if err != nil {
 		idx.Logger.Error("[ERROR] Write DelFile Error : %v", err)
 	}

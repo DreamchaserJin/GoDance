@@ -15,7 +15,7 @@ type Log4FE struct {
 	logger_handle *logger.Logger
 }
 
-func New(service string) (log4FE *Log4FE, err error) {
+func NewLogger(service string) (log4FE *Log4FE, err error) {
 	// TODO: 从配置文件里面读取：日志模式、日志路径、日志缓存
 	filename := fmt.Sprintf("/var/log/FalconEngine/logs/%s.log", service)
 
