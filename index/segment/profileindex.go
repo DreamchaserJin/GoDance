@@ -166,9 +166,9 @@ func (pfi *profileindex) setBtree(btdb *tree.BTreeDB) {
 	pfi.btree = btdb
 }
 
-func (pfi *profileindex) mergeProfileIndex(inverts []*profileindex, segmentName string, btdb *tree.BTreeDB) error {
-	idxFileName := fmt.Sprintf("%v%v_profileindex.pfi", segmentName, pfi.fieldName)
-	idxFd, err := os.OpenFile(idxFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+func (pfi *profileindex) mergeProfileIndex(profileindexs []*profileindex, segmentName string, btdb *tree.BTreeDB) error {
+	pfiFileName := fmt.Sprintf("%v%v_profileindex.pfi", segmentName, pfi.fieldName)
+	idxFd, err := os.OpenFile(pfiFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,12 @@ func (pfi *profileindex) mergeProfileIndex(inverts []*profileindex, segmentName 
 	fi, _ := idxFd.Stat()
 	totalOffset := int(fi.Size())
 
+	// var keySet = make([]int64, 0)
+
 	pfi.btree = btdb
+
+	// fmt.Println(btdb == nil)
+
 	type pfiMerge struct {
 		p      *profileindex
 		key    int64
@@ -186,7 +191,7 @@ func (pfi *profileindex) mergeProfileIndex(inverts []*profileindex, segmentName 
 
 	pfis := make([]pfiMerge, 0)
 
-	for _, i := range inverts {
+	for _, i := range profileindexs {
 		if i.btree == nil {
 			continue
 		}
@@ -204,28 +209,30 @@ func (pfi *profileindex) mergeProfileIndex(inverts []*profileindex, segmentName 
 		})
 	}
 
+	var leafNodes = make(map[int64]string)
+
 	resflag := 0
 	for i := range pfis {
 		resflag = resflag | (1 << uint(i))
 	}
 	flag := 0
 	for flag != resflag {
-		minKey := pfis[0].key
+		var minKey int64 = 0xFFFFFFFFFFFFFF
 		meridxs := make([]int, 0)
 		for idx, p := range pfis {
-			if flag>>uint(idx)&1 != 0 {
-				continue
-			}
-			if minKey > p.key {
+			if flag>>uint(idx)&1 == 0 && minKey > p.key {
 				minKey = p.key
 				meridxs = make([]int, 0)
 				meridxs = append(meridxs, idx)
-			} else if minKey == p.key {
+				continue
+			}
+			if flag>>uint(idx)&1 == 0 && minKey == p.key {
 				meridxs = append(meridxs, idx)
 				continue
 			}
 		}
 
+		fmt.Println(minKey)
 		value := make([]uint64, 0)
 
 		for _, idx := range meridxs {
@@ -252,9 +259,12 @@ func (pfi *profileindex) mergeProfileIndex(inverts []*profileindex, segmentName 
 			return err
 		}
 		idxFd.Write(buffer.Bytes())
-		pfi.btree.Set(pfi.fieldName, minKey, uint64(totalOffset))
+
+		leafNodes[minKey] = fmt.Sprintf("%v", uint64(totalOffset))
+
 		totalOffset = totalOffset + 8 + lens*8
 	}
+	pfi.btree.SetBatch(pfi.fieldName, leafNodes)
 
 	pfi.memoryHashMap = nil
 	pfi.isMemory = false
