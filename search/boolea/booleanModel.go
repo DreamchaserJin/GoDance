@@ -14,12 +14,12 @@ import (
 //
 func DocMergeFilter(docQueryNodes []utils.DocIdNode, docFilterIds []uint64, notDocQueryNodes []utils.DocIdNode) []uint64 {
 	// 取出[]uint64
-	nums1 := make([]uint64, 0)
+	docs1 := make([]uint64, 0)
 	for _, v := range docQueryNodes {
-		nums1 = append(nums1, v.Docid)
+		docs1 = append(docs1, v.Docid)
 	}
 	// 合并搜索词与范围查找的文档
-	docMerge := merge(nums1, docFilterIds)
+	docMerge := Merge(docs1, docFilterIds)
 
 	// 记录要过滤的id
 	notMap := make(map[uint64]bool, 0)
@@ -81,34 +81,63 @@ func DocMergeFilter(docQueryNodes []utils.DocIdNode, docFilterIds []uint64, notD
 //}
 
 //
-//  merge
+//  Merge
 //  @Description: 合并并去重
-//  @param nums1  要合并的文档
-//  @param nums2  要合并的文档
+//  @param docs1  要合并的文档
+//  @param docs2  要合并的文档
 //  @return []int   返回合并后的文档
 //
-func merge(nums1 []uint64, nums2 []uint64) []uint64 {
-	n := len(nums1)
-	m := len(nums2)
+func Merge(docs1 []uint64, docs2 []uint64) []uint64 {
+	n := len(docs1)
+	m := len(docs2)
 	sorted := make([]uint64, 0)
 	p1, p2 := 0, 0
 	for {
 		if p1 == n {
-			sorted = append(sorted, nums2[p2:]...)
+			sorted = append(sorted, docs2[p2:]...)
 			break
 		}
 		if p2 == m {
-			sorted = append(sorted, nums1[p1:]...)
+			sorted = append(sorted, docs1[p1:]...)
 			break
 		}
-		if nums1[p1] < nums2[p2] {
-			sorted = append(sorted, nums1[p1])
+		if docs1[p1] < docs2[p2] {
+			sorted = append(sorted, docs1[p1])
 			p1++
-		} else if nums1[p1] > nums2[p2] {
-			sorted = append(sorted, nums2[p2])
+		} else if docs1[p1] > docs2[p2] {
+			sorted = append(sorted, docs2[p2])
 			p2++
 		} else {
-			sorted = append(sorted, nums1[p1])
+			sorted = append(sorted, docs1[p1])
+			p1++
+			p2++
+		}
+	}
+	return sorted
+}
+
+func MergeDocIdNode(docs1 []utils.DocIdNode, docs2 []utils.DocIdNode) []utils.DocIdNode {
+	n := len(docs1)
+	m := len(docs2)
+	sorted := make([]utils.DocIdNode, 0)
+	p1, p2 := 0, 0
+	for {
+		if p1 == n {
+			sorted = append(sorted, docs2[p2:]...)
+			break
+		}
+		if p2 == m {
+			sorted = append(sorted, docs1[p1:]...)
+			break
+		}
+		if docs1[p1].Docid < docs2[p2].Docid {
+			sorted = append(sorted, docs1[p1])
+			p1++
+		} else if docs1[p1].Docid > docs2[p2].Docid {
+			sorted = append(sorted, docs2[p2])
+			p2++
+		} else {
+			sorted = append(sorted, docs1[p1])
 			p1++
 			p2++
 		}

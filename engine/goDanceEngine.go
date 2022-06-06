@@ -217,7 +217,7 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	for _, query := range searchQueries {
 		ids, ok := idx.SearchKeyDocIds(query)
 		if ok {
-			docQueryNodes = append(docQueryNodes, ids...)
+			docQueryNodes = boolea.MergeDocIdNode(docQueryNodes, ids)
 		}
 	}
 
@@ -225,7 +225,7 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	for _, filter := range searchFilters {
 		ids, ok := idx.SearchFilterDocIds(filter)
 		if ok {
-			docFilterIds = append(docFilterIds, ids...)
+			docFilterIds = boolea.Merge(docFilterIds, ids)
 		}
 	}
 
@@ -233,7 +233,7 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	for _, query := range notSearchQueries {
 		ids, ok := idx.SearchKeyDocIds(query)
 		if ok {
-			notDocQueryNodes = append(notDocQueryNodes, ids...)
+			notDocQueryNodes = boolea.MergeDocIdNode(notDocQueryNodes, ids)
 		}
 	}
 
