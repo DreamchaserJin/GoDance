@@ -35,10 +35,12 @@ const (
 )
 
 var (
+	//TODO 当Leader节点切换时，需要找到最新的日志开始计数
 	id uint64 = 0
 )
 
 type LogEntry struct {
+
 	//当前日志的id，这个是递增的
 	Id uint64
 	//日志任期
@@ -177,6 +179,7 @@ func appendClusterLog(op operation, object any) bool {
 		call := c.client.Go(context.Background(), "RaftServe", "AppendEntry", entry, reply, nil)
 		//异步处理返回值
 		go func() {
+			//TODO 需要对日志不一致的情况进行处理，要手动进行一次同步
 			if call.Error != nil {
 				log.Println("arith error:", call.Error)
 			}
