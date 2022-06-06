@@ -23,5 +23,4 @@ func main() {
 	t.Insert("字节跳动byteDance")
 	res := t.Search("字节跳动")
 	fmt.Println(res)
-
 }

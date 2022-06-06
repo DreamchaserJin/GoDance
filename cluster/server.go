@@ -113,7 +113,7 @@ type EntryArgs struct {
 
 // AppendEntry RPC called by leader
 func (s *Server) AppendEntry(ctx context.Context, logEntry *LogEntry, reply *CommonReply) error {
-
+	// todo 需要验证是否是上一个日志是否一致
 	AppendSelfLog(logEntry)
 	reply.Success = true
 	return nil
@@ -126,6 +126,7 @@ type EntriesArgs struct {
 
 // AppendEntries 由Leader来调用，用于同步Leader和Flower日志的一致性
 func (s *Server) AppendEntries(ctx context.Context, args *EntriesArgs, reply *CommonReply) error {
+	// todo 需要验证是否是上一个日志是否一致以及提交committed是否一致
 	for _, e := range args.IncreasedLog {
 		AppendSelfLog(&e)
 	}

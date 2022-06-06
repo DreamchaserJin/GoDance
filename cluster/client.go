@@ -115,6 +115,10 @@ func tryElection() {
 			}
 			break
 		}
+		//如果竞选失败，且当前状态已经不是候选者，意味着这期间心跳恢复，此时不再竞选
+		if State.selfState.state != Candidate {
+			break
+		}
 		//如果竞选失败，检查一下自身节点是否在集群中，如果不在，则需要再次尝试获取当前Leader(避免初始情况下的无效自我选举)
 		if _, ok := State.clusterState.Nodes.nodes[State.selfState.nodeId]; !ok {
 			flag := tryJoin()
