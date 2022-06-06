@@ -11,7 +11,7 @@ import (
 )
 
 func TestCreateIndex(t *testing.T) {
-	logger, err := utils.New("FalconSearcher")
+	logger, err := utils.NewLogger("FalconSearcher")
 	if err != nil {
 		fmt.Printf("err happen: %v", err)
 	}
@@ -40,12 +40,27 @@ func TestCreateIndex(t *testing.T) {
 	err = index.AddField(field1)
 	err = index.AddField(field2)
 	err = index.AddField(field3)
-	// 删除索引
-	// err = index.DeleteField("year")
+
+	// 添加字段
+	content := make(map[string]string, 0)
+	csvTable := utils.LoadCsvFile("/home/iceberg/桌面/高考作文1.csv", 1)
+	for i, val := range csvTable.Records {
+		content["id"] = strconv.Itoa(i)
+		content["year"] = val.GetString("year")
+		content["region"] = val.GetString("region")
+		content["title"] = val.GetString("title")
+		index.AddDocument(content)
+	}
+
+	err = index.SyncMemorySegment()
+	if err != nil {
+		fmt.Printf("err happen : %v", err)
+	}
+
 }
 
 func TestDeleteField(t *testing.T) {
-	logger, err := utils.New("FalconSearcher")
+	logger, err := utils.NewLogger("FalconSearcher")
 	if err != nil {
 		fmt.Printf("err happen: %v", err)
 	}
@@ -59,14 +74,14 @@ func TestDeleteField(t *testing.T) {
 
 func TestAddDocument(t *testing.T) {
 	//utils.GSegmenter = utils.NewSegmenter("/home/hz/GoProject/GoDanceEngine/GoDance/test/dictionary/dict.txt")
-	logger, err := utils.New("GoDanceTest")
+	logger, err := utils.NewLogger("GoDanceTest")
 	//if err != nil {
 	//	fmt.Printf("err happen: %v", err)
 	//}
 	index := gdindex.NewIndexFromLocalFile("gk", utils.IDX_ROOT_PATH, logger)
 
 	content := make(map[string]string, 0)
-	csvTable := utils.LoadCsvFile("/home/iceberg/桌面/高考作文1.csv", 1)
+	csvTable := utils.LoadCsvFile("/home/iceberg/桌面/高考作文.csv", 1)
 	for i, val := range csvTable.Records {
 		content["id"] = strconv.Itoa(i)
 		content["year"] = val.GetString("year")
@@ -107,7 +122,7 @@ func TestFst(t *testing.T) {
 func TestSearch(t *testing.T) {
 	utils.GetDocIDsChan, utils.GiveDocIDsChan = utils.DocIdsMaker()
 	//utils.GSegmenter = utils.NewSegmenter("/home/hz/GoProject/GoDanceEngine/GoDance/test/dictionary/dict.txt")
-	logger, err := utils.New("GDEngine")
+	logger, err := utils.NewLogger("GDEngine")
 	if err != nil {
 		fmt.Printf("err happen: %v", err)
 	}
@@ -148,39 +163,35 @@ func TestSearch(t *testing.T) {
 
 }
 
-func TestMergeSegment(t *testing.T) {
-	logger, err := utils.New("FalconSearcher")
+func TestSearchFilterDocIds(t *testing.T) {
+	logger, err := utils.NewLogger("GDEngine")
 	if err != nil {
 		fmt.Printf("err happen: %v", err)
 	}
 	index := gdindex.NewIndexFromLocalFile("gk", utils.IDX_ROOT_PATH, logger)
 
-	index.MergeSegments(-1)
-
-}
-
-func TestGetDoc(t *testing.T) {
-
-	ids := make([]utils.DocIdNode, 0)
-	ids = append(ids, utils.DocIdNode{
-		Docid: 0,
-	})
-	ids = append(ids, utils.DocIdNode{
-		Docid: 1,
-	})
-
-	logger, err := utils.New("GoDanceEngine")
-	if err != nil {
-		fmt.Printf("err happen: %v", err)
+	filters := utils.SearchFilters{FieldName: "year", Start: 1977, End: 2000, Type: utils.FILT_RANGE}
+	ids, b := index.SearchFilterDocIds(filters)
+	if !b {
+		fmt.Println("查询失败")
 	}
-	index := gdindex.NewIndexFromLocalFile("wechat", utils.IDX_ROOT_PATH, logger)
-
 	for _, id := range ids {
-		document, ok := index.GetDocument(id.Docid)
+		document, ok := index.GetDocument(id)
 		if ok {
 			fmt.Println(document)
 		} else {
 			fmt.Println("nil")
 		}
 	}
+}
+
+func TestMergeSegment(t *testing.T) {
+	logger, err := utils.NewLogger("FalconSearcher")
+	if err != nil {
+		fmt.Printf("err happen: %v", err)
+	}
+	index := gdindex.NewIndexFromLocalFile("gk", utils.IDX_ROOT_PATH, logger)
+
+	index.MergeSegments()
+
 }

@@ -342,7 +342,6 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 	}
 
 	if f.ivt != nil {
-		// TODO 考虑删除，为字段倒排新建数据表
 		//f.btree = btree
 		//if err := f.btree.AddBTree(f.fieldName); err != nil {
 		//	f.Logger.Error("[ERROR] Invert %v Create Btree Error : %v", f.fieldName, err)

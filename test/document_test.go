@@ -8,7 +8,7 @@ import (
 )
 
 func TestUpdateDocument(t *testing.T) {
-	logger, err := utils.New("GoDanceTest")
+	logger, err := utils.NewLogger("GoDanceTest")
 	if err != nil {
 		fmt.Printf("err happen: %v", err)
 	}
@@ -19,5 +19,20 @@ func TestUpdateDocument(t *testing.T) {
 	content["region"] = "辽宁"
 	content["title"] = "伟大的胜利"
 	index.UpdateDocument(content)
+	index.SyncMemorySegment()
+}
+
+func TestDeleteDocument(t *testing.T) {
+	logger, err := utils.NewLogger("GoDanceTest")
+	if err != nil {
+		fmt.Printf("err happen: %v", err)
+	}
+	content := make(map[string]string)
+	index := gdindex.NewIndexFromLocalFile("gk", utils.IDX_ROOT_PATH, logger)
+	content["id"] = "6"
+	content["year"] = "1977"
+	content["region"] = "辽宁"
+	content["title"] = "伟大的胜利"
+	index.DeleteDocument("6")
 	index.SyncMemorySegment()
 }

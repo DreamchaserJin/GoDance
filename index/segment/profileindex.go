@@ -140,7 +140,10 @@ func (pfi *profileindex) serialization(segmentName string, btdb *tree.BTreeDB) e
 		nowOffset += uint64(lens)*8 + 8
 	}
 
-	pfi.btree.SetBatch(pfi.fieldName, leafNodes)
+	err = pfi.btree.SetBatch(pfi.fieldName, leafNodes)
+	if err != nil {
+		return err
+	}
 
 	pfi.memoryHashMap = nil
 	pfi.isMemory = false
@@ -188,12 +191,12 @@ func (pfi *profileindex) mergeProfileIndex(inverts []*profileindex, segmentName 
 			continue
 		}
 
-		key, _, ok := pfi.GetFirstKV()
+		key, _, ok := i.GetFirstKV()
 		if !ok {
 			continue
 		}
 
-		docIds, _ := pfi.queryTerm(key)
+		docIds, _ := i.queryTerm(key)
 		pfis = append(pfis, pfiMerge{
 			p:      i,
 			key:    key,

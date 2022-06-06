@@ -213,11 +213,10 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	notDocQueryNodes := make([]utils.DocIdNode, 0)
 
 	// todo 对每个 ids 求交集
-	// todo 计算相关性 idf
 	for _, query := range searchQueries {
 		ids, ok := idx.SearchKeyDocIds(query)
 		if ok {
-			docQueryNodes = append(docQueryNodes, ids...)
+			docQueryNodes = boolea.MergeDocIdNode(docQueryNodes, ids)
 		}
 	}
 
@@ -225,7 +224,7 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	for _, filter := range searchFilters {
 		ids, ok := idx.SearchFilterDocIds(filter)
 		if ok {
-			docFilterIds = append(docFilterIds, ids...)
+			docFilterIds = boolea.Merge(docFilterIds, ids)
 		}
 	}
 
@@ -233,13 +232,17 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	for _, query := range notSearchQueries {
 		ids, ok := idx.SearchKeyDocIds(query)
 		if ok {
-			notDocQueryNodes = append(notDocQueryNodes, ids...)
+			notDocQueryNodes = boolea.MergeDocIdNode(notDocQueryNodes, ids)
 		}
 	}
 
 	// todo 对 docQueryNodes 和 docFilterIds求交集, 注意类型 []DocIdNode 和 []uint64
 	// 使用 bool模型汇总
 	docMergeFilter := boolea.DocMergeFilter(docQueryNodes, docFilterIds, notDocQueryNodes)
+
+	// todo 计算相关性 idf
+
+	// todo 需要docMergeFilter对应文章的标题、摘要、内容的单词权重map[string]float64
 
 	lens := int64(len(docMergeFilter))
 	if lens == 0 {
