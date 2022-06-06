@@ -50,13 +50,20 @@ const (
 	Fail           string = `{"status":"Fail"}`
 )
 
+// NewDefaultEngine
+// @Description 初始化引擎
+// @Param logger 日志
+// @Return *GoDanceEngine 引擎对象
 func NewDefaultEngine(logger *utils.Log4FE) *GoDanceEngine {
 	this := &GoDanceEngine{Logger: logger, idxManager: newIndexManager(logger), trie: related.Constructor()}
 	return this
 }
 
 // CreateIndex
-// @Description 创建新的索引
+// @Description 创建一个新索引
+// @Param params 请求参数
+// @Param body  请求体 Json格式
+// @Return error 任何错误
 func (gde *GoDanceEngine) CreateIndex(params map[string]string, body []byte) error {
 
 	indexName, hasindex := params["index"]
@@ -82,28 +89,29 @@ func (gde *GoDanceEngine) DeleteIndex() {
 
 // AddField
 // @Description 给某个索引新增字段
-// @Param indexName
-// @Param field
-// @Return error
+// @Param indexName 索引名
+// @Param field  字段信息
+// @Return error  任何错误
 func (gde *GoDanceEngine) AddField(indexName string, field segment.SimpleFieldInfo) error {
-
 	return gde.idxManager.AddField(indexName, field)
-
 }
 
 // DeleteField
 // @Description 给某个索引删除字段
-// @Param indexName
-// @Param fieldName
-// @Return error
+// @Param indexName 索引名
+// @Param fieldName 字段名
+// @Return error  任何错误
 func (gde *GoDanceEngine) DeleteField(indexName string, fieldName string) error {
-
 	return gde.idxManager.DeleteField(indexName, fieldName)
-
 }
 
 // DocumentOptions
-// @Description 根据 HTTP 请求类型来判断进行 增删改
+// @Description 对文档的增删改
+// @Param method 请求方式 PUT,POST,DELETE
+// @Param params 请求参数
+// @Param body  请求体
+// @Return string Json格式的字符串，表示成功或者失败
+// @Return error 任何错误
 func (gde *GoDanceEngine) DocumentOptions(method string, params map[string]string, body []byte) (string, error) {
 
 	indexName, hasIndex := params["index"]
@@ -144,7 +152,7 @@ func (gde *GoDanceEngine) DocumentOptions(method string, params map[string]strin
 	}
 }
 
-// RelatedSearch
+// RealTimeSearch
 // @Description 实时搜索返回内容<=10
 // @Param key  关键词
 // @Return string  json格式的返回结果
@@ -176,8 +184,11 @@ func (gde *GoDanceEngine) RelatedSearch(key string) (string, error) {
 	return "", nil
 }
 
-// Search todo 搜索
-// @Description
+// Search
+// @Description 搜索文档并返回
+// @Param params 请求参数
+// @Return string 搜索相关的Json字符串
+// @Return error
 func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 
 	startTime := time.Now()
@@ -245,6 +256,7 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	resultSet.Results = make([]map[string]string, 0)
 	for _, docId := range docMergeFilter[start:end] {
 		doc, ok := idx.GetDocument(docId)
+		doc["id"] = fmt.Sprintf("%v", docId)
 		if ok {
 			resultSet.Results = append(resultSet.Results, doc)
 		}
@@ -265,6 +277,8 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	return string(r), nil
 }
 
+// calcStartEnd
+// @Description 计算分页
 func (gde *GoDanceEngine) calcStartEnd(ps, cp string, docSize int64) (int64, int64, error) {
 
 	pageSize, ok1 := strconv.ParseInt(ps, 0, 0)
@@ -296,6 +310,8 @@ func (gde *GoDanceEngine) calcStartEnd(ps, cp string, docSize int64) (int64, int
 	return start, end, nil
 }
 
+// parseParams
+// @Description 根据请求参数生成对应的搜索条件和过滤条件
 func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Index) ([]utils.SearchFilters, []utils.SearchQuery, []utils.SearchQuery) {
 
 	searchFilters := make([]utils.SearchFilters, 0)
