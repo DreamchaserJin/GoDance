@@ -40,8 +40,23 @@ func TestCreateIndex(t *testing.T) {
 	err = index.AddField(field1)
 	err = index.AddField(field2)
 	err = index.AddField(field3)
-	// 删除索引
-	// err = index.DeleteField("year")
+
+	// 添加字段
+	content := make(map[string]string, 0)
+	csvTable := utils.LoadCsvFile("/home/iceberg/桌面/高考作文1.csv", 1)
+	for i, val := range csvTable.Records {
+		content["id"] = strconv.Itoa(i)
+		content["year"] = val.GetString("year")
+		content["region"] = val.GetString("region")
+		content["title"] = val.GetString("title")
+		index.AddDocument(content)
+	}
+
+	err = index.SyncMemorySegment()
+	if err != nil {
+		fmt.Printf("err happen : %v", err)
+	}
+
 }
 
 func TestDeleteField(t *testing.T) {

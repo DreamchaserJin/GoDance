@@ -505,7 +505,10 @@ func (idx *Index) MergeSegments() error {
 		tmpSegment := segment.NewEmptySegmentByFieldsInfo(segmentName, needMergeSegments[0].StartDocId, fields, idx.Logger)
 		idx.NextSegmentSuffix++
 
-		tmpSegment.MergeSegments(needMergeSegments, delDocSet)
+		err = tmpSegment.MergeSegments(needMergeSegments, delDocSet)
+		if err != nil {
+			return err
+		}
 		tmpSegment.Close()
 
 		tmpSegment = nil
