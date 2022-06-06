@@ -44,6 +44,17 @@ func (a DocWeightSort) Less(i, j int) bool {
 	return CompareFloat64(a[i].WordTF, a[j].WordTF) < 0
 }
 
+// 协调因子
+type CoordWeight struct {
+	DocId  uint64
+	Weight float64
+}
+type CoordWeightSort []CoordWeight
+
+func (cw CoordWeightSort) Len() int           { return len(cw) }
+func (cw CoordWeightSort) Less(i, j int) bool { return cw[i].Weight > cw[j].Weight }
+func (cw CoordWeightSort) Swap(i, j int)      { cw[i], cw[j] = cw[j], cw[i] }
+
 //
 //  CompareFloat64
 //  @Description: 比较两个float64类型的数。如果两值之差小于10的-15次方，则会认为它们相等。如果a大于b,则返回1。a小于b,则返回-1。

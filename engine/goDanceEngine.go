@@ -5,6 +5,7 @@ import (
 	"GoDance/index/segment"
 	"GoDance/search/boolea"
 	"GoDance/search/related"
+	"GoDance/search/weight"
 	"GoDance/utils"
 	"encoding/json"
 	"errors"
@@ -240,11 +241,10 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	// 使用 bool模型汇总
 	docMergeFilter := boolea.DocMergeFilter(docQueryNodes, docFilterIds, notDocQueryNodes)
 
-	// todo 计算相关性 idf
+	// todo 对docMergeFilter的所有文档进行权重排序
+	docWeightSort := weight.DocWeightSort(docMergeFilter, notDocQueryNodes, searchQueries, idx)
 
-	// todo 需要docMergeFilter对应文章的标题、摘要、内容的单词权重map[string]float64
-
-	lens := int64(len(docMergeFilter))
+	lens := int64(len(docWeightSort))
 	if lens == 0 {
 		return NotFound, nil
 	}
@@ -258,7 +258,7 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	var resultSet DefaultResult
 
 	resultSet.Results = make([]map[string]string, 0)
-	for _, docId := range docMergeFilter[start:end] {
+	for _, docId := range docWeightSort[start:end] {
 		doc, ok := idx.GetDocument(docId)
 		doc["id"] = fmt.Sprintf("%v", docId)
 		if ok {
