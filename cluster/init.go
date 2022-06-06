@@ -11,6 +11,7 @@ import (
 
 //为了方便管理整个包的初始化步骤而特意建了一个文件
 func init() {
+	recover()
 	stateInit()
 	serverInit()
 }
@@ -59,20 +60,15 @@ func serverInit() {
 	}
 	//心跳检查
 	go func() {
-		config := configs.Config.Cluster
-		baseTime := config.HeartBeatMin
-		random := config.HeartBeatMax - config.HeartBeatMin
 		for {
-			//根据配置设置随机超时时间
-			//定期检查主节点是否近期发送过探活请求
-			randomTimeOut := rand.Intn(random) + baseTime
+			overtime := checkHeatBeat()
 			//如果超时没收到心跳
-			if time.Now().Sub(heartBeat).Milliseconds() > int64(randomTimeOut) {
+			if overtime {
+				//修改状态为无Leader
 				State.selfState.state = NoLeader
-				//如果是候选节点则开始选举自己为主节点
+				//如果是候选节点则开始选举
 				if State.selfState.isMaster {
-					tryJoin()
-					tryElection()
+					Election()
 					break
 				} else {
 					for !tryJoin() {
@@ -89,4 +85,11 @@ func serverInit() {
 			log.Fatalln("开放端口失败！")
 		}
 	}()
+}
+
+//todo 节点恢复 ,注意需要检查自身最新的日志在当前集群中是否提交
+//因为有一种很特殊很特殊的情况： 假设有A B C D E五个节点，A B C成功复制了最新的日志项，leader节点A提交了，B C未提交，
+//这时leader节点A挂了，选举出新leader节点B，这时候只能发现2个节点具备某条uncommitted的日志项，不满足大多数
+func recover() {
+
 }

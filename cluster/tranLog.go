@@ -114,7 +114,7 @@ func Diff(committed uint64, logId uint64) (committedIds []uint64, increasedLog [
 	return committedIds, increasedLog
 }
 
-//todo persistent LogEntry
+//todo persistent LogEntry ，只有MasterNode节点需要持久化日志
 func (e *LogEntry) persistent() {
 
 }
