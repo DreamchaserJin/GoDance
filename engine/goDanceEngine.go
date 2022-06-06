@@ -213,6 +213,7 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	notDocQueryNodes := make([]utils.DocIdNode, 0)
 
 	// todo 对每个 ids 求交集
+	// todo 计算相关性 idf
 	for _, query := range searchQueries {
 		ids, ok := idx.SearchKeyDocIds(query)
 		if ok {
