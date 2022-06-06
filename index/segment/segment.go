@@ -339,7 +339,7 @@ func (seg *Segment) IsEmpty() bool {
 func (seg *Segment) MergeSegments(sgs []*Segment, delDocSet map[uint64]struct{}) error {
 	seg.Logger.Info("[INFO] MergeSegments [%v] Start", seg.SegmentName)
 
-	btdbName := fmt.Sprintf("%v%v", seg.SegmentName, "seg.db")
+	btdbName := fmt.Sprintf("%v%v", seg.SegmentName, "seg.bt")
 	if seg.btdb == nil {
 		seg.btdb = tree.NewBTDB(btdbName, seg.Logger)
 	}
