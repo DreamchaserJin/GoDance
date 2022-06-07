@@ -1,7 +1,7 @@
 /*****************************************************************************
  *  file name : JsonFileIO.go
- *  author : Wu Yinghao
- *  email  : wyh817@gmail.com
+ *  author : iceberg
+ *  email  : iceberg_iceberg@163.com
  *
  *  file description : 读写json文件
  *

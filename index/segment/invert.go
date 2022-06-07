@@ -7,7 +7,6 @@
 package segment
 
 import (
-	"GoDance/index/tree"
 	"GoDance/search/weight"
 	"GoDance/utils"
 	"bytes"
@@ -112,7 +111,7 @@ func (ivt *invert) addDocument(docId uint64, contentStr string) error {
 //  @param btree
 //  @return error
 //
-func (ivt *invert) serialization(segmentName string, btree *tree.BTreeDB) error {
+func (ivt *invert) serialization(segmentName string) error {
 	// fst存储文件名
 	fstFileName := fmt.Sprintf("%v%v_invert.fst", segmentName, ivt.fieldName)
 	// 打开fst文件
@@ -429,7 +428,7 @@ func (ivt *invert) mergeFSTIteratorList(segmentName string, mergeFSTNodes []*Fst
 			node = heap.Pop(&fstHeap).(*FstNode)
 			if node != nil && node.Key == nodeList[len(nodeList)-1].Key {
 				nodeList = append(nodeList, node)
-			} else if node.Key != nodeList[len(nodeList)-1].Key{
+			} else if node.Key != nodeList[len(nodeList)-1].Key {
 				heap.Push(&fstHeap, node)
 				break
 			} else {
