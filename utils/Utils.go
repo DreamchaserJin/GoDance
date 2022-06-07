@@ -58,7 +58,7 @@ func (cw CoordWeightSort) Less(i, j int) bool {
 	if cw[i].Weight > cw[j].Weight {
 		return true
 	} else if cw[i].Weight == cw[j].Weight {
-		return cw[i].DocId < cw[i].DocId
+		return cw[i].DocId < cw[j].DocId
 	} else {
 		return false
 	}
