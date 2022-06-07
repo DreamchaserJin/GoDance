@@ -1,9 +1,5 @@
 package weight
 
-import (
-	"math"
-)
-
 // 关键词与TF-IDF
 type WordTfIdf struct {
 	Word  string
@@ -33,53 +29,6 @@ func TF(listWords []string) map[string]float64 {
 		wordTf[word] = docFrequency[word] / float64(sumWorlds)
 	}
 	return wordTf
-}
-
-//
-//  IDF
-//  @Description: 统计搜索词的IDF
-//  @param keyWords
-//  @param docMaps : 搜索词相关的多篇文章的map权重数组
-//  @return map[string]float64
-//
-func IDF(keyWords []string, docWordTF []map[string]float64) map[string]float64 {
-	docNum := float64(len(docWordTF))
-	wordIdf := make(map[string]float64)
-	// 统计每个关键词在几篇文章中
-	wordDoc := make(map[string]float64, 0)
-	for _, word := range keyWords {
-		// 遍历每一篇文章的序号，看是否在该文章中存在
-		for _, Maps := range docWordTF {
-			if _, ok := Maps[word]; ok {
-				wordDoc[word]++
-				break
-			}
-		}
-	}
-	// 计算IDF逆文件频率：log(总数/这个关键词出现的文章数)
-	for _, word := range keyWords {
-		wordIdf[word] = math.Log(docNum / (wordDoc[word] + 1))
-	}
-	return wordIdf
-}
-
-//
-//  WordWeight
-//  @Description: 计算单词的TF-IDF权重
-//  @param keyWords
-//  @param listWords
-//  @return WordTfIdfs
-//
-func WordWeight(wordTf map[string]float64, wordIdf map[string]float64) WordTfIdfs {
-	// 3. TF * IDF
-	var wordidfS WordTfIdfs
-	for word := range wordIdf {
-		var wti WordTfIdf
-		wti.Word = word
-		wti.Value = wordTf[word] * wordIdf[word]
-		wordidfS = append(wordidfS, wti)
-	}
-	return wordidfS
 }
 
 //
