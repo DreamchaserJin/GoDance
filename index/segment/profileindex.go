@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 )
@@ -217,7 +218,7 @@ func (pfi *profileindex) mergeProfileIndex(profileindexs []*profileindex, segmen
 	}
 	flag := 0
 	for flag != resflag {
-		var minKey int64 = 0xFFFFFFFFFFFFFF
+		var minKey int64 = math.MaxInt64
 		meridxs := make([]int, 0)
 		for idx, p := range pfis {
 			if flag>>uint(idx)&1 == 0 && minKey > p.key {
@@ -232,7 +233,6 @@ func (pfi *profileindex) mergeProfileIndex(profileindexs []*profileindex, segmen
 			}
 		}
 
-		fmt.Println(minKey)
 		value := make([]uint64, 0)
 
 		for _, idx := range meridxs {

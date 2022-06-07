@@ -406,23 +406,35 @@ func (ivt *invert) mergeFSTIteratorList(segmentName string, mergeFSTNodes []*Fst
 		nodeList := make([]*FstNode, 0)
 		nodeList = append(nodeList, heap.Pop(&fstHeap).(*FstNode))
 		var node *FstNode
-		if fstHeap.Len() > 0 {
+		//if fstHeap.Len() > 0 {
+		//	node = heap.Pop(&fstHeap).(*FstNode)
+		//}
+		//for node != nil && node.Key == nodeList[len(nodeList)-1].Key {
+		//	nodeList = append(nodeList, node)
+		//	if fstHeap.Len() > 0 {
+		//		node = heap.Pop(&fstHeap).(*FstNode)
+		//	} else {
+		//		break
+		//	}
+		//}
+		//
+		//// 如果fstHeap的长度为0,说明整个mergeFstNodes都相同
+		//// 如果fstHeap的长度大于0, 循环退出条件为node.Key != nodeList[len(nodeList)-1].Key
+		//if fstHeap.Len() > 0 {
+		//	// 最后多抛出了一个，需要复位
+		//	heap.Push(&fstHeap, node)
+		//}
+
+		for fstHeap.Len() > 0 {
 			node = heap.Pop(&fstHeap).(*FstNode)
-		}
-		for node != nil && node.Key == nodeList[len(nodeList)-1].Key {
-			nodeList = append(nodeList, node)
-			if fstHeap.Len() > 0 {
-				node = heap.Pop(&fstHeap).(*FstNode)
+			if node != nil && node.Key == nodeList[len(nodeList)-1].Key {
+				nodeList = append(nodeList, node)
+			} else if node.Key != nodeList[len(nodeList)-1].Key{
+				heap.Push(&fstHeap, node)
+				break
 			} else {
 				break
 			}
-		}
-
-		// 如果fstHeap的长度为0,说明整个mergeFstNodes都相同
-		// 如果fstHeap的长度大于0, 循环退出条件为node.Key != nodeList[len(nodeList)-1].Key
-		if fstHeap.Len() > 0 {
-			// 最后多抛出了一个，需要复位
-			heap.Push(&fstHeap, node)
 		}
 
 		value := make([]utils.DocIdNode, 0)
