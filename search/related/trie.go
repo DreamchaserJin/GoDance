@@ -17,8 +17,16 @@ type Trie struct {
 //  @Description: 添加接口，创建字典树
 //  @return Trie
 //
-func Constructor() Trie {
-	return Trie{}
+func Constructor(triePath string) Trie {
+
+	var trieTree = Trie{}
+
+	// todo 反序列化
+	if utils.Exist(triePath) {
+
+	}
+
+	return trieTree
 }
 
 //

@@ -18,6 +18,7 @@ import (
 )
 
 var Engine *GoDanceEngine
+var TriePath = "./data/trieTree.tr"
 
 type GoDanceEngine struct {
 	idxManager *IndexManager
@@ -29,17 +30,6 @@ type GoDanceEngine struct {
 	trie       related.Trie
 }
 
-// DefaultResult
-// @Description: 返回给Web层的 Json
-type DefaultResult struct {
-	TotalCount int64               `json:"totalCount"`
-	From       int64               `json:"from"`
-	To         int64               `json:"to"`
-	Status     string              `json:"status"`
-	CostTime   string              `json:"costTime"`
-	Results    []map[string]string `json:"results"`
-}
-
 // 一些返回的错误常量
 const (
 	MethodError    string = "提交方式错误,请查看提交方式是否正确"
@@ -48,9 +38,9 @@ const (
 	NoPrimaryKey   string = "没有主键"
 	QueryError     string = "查询条件有问题，请检查查询条件"
 	IndexNotFound  string = "未找到对应的索引"
-	OK             string = `{"status":"OK"}`
-	NotFound       string = `{"status":"NotFound"}`
-	Fail           string = `{"status":"Fail"}`
+	OK             string = `"status":"OK"`
+	NotFound       string = `"status":"NotFound"`
+	Fail           string = `"status":"Fail"`
 )
 
 // NewDefaultEngine
@@ -58,7 +48,8 @@ const (
 // @Param logger 日志
 // @Return *GoDanceEngine 引擎对象
 func NewDefaultEngine(logger *utils.Log4FE) *GoDanceEngine {
-	this := &GoDanceEngine{Logger: logger, idxManager: newIndexManager(logger), trie: related.Constructor()}
+
+	this := &GoDanceEngine{Logger: logger, idxManager: newIndexManager(logger), trie: related.Constructor(TriePath)}
 	return this
 }
 
@@ -67,15 +58,11 @@ func NewDefaultEngine(logger *utils.Log4FE) *GoDanceEngine {
 // @Param params 请求参数
 // @Param body  请求体 Json格式
 // @Return error 任何错误
-func (gde *GoDanceEngine) CreateIndex(params map[string]string, body []byte) error {
-
-	indexName, hasindex := params["index"]
-	if !hasindex {
-		return errors.New(ParamsError)
-	}
+func (gde *GoDanceEngine) CreateIndex(indexName string, body []byte) error {
 
 	var idx IndexStruct
 	err := json.Unmarshal(body, &idx)
+	fmt.Println(idx)
 	if err != nil {
 		gde.Logger.Error("[ERROR]  %v : %v ", JsonParseError, err)
 		return errors.New(JsonParseError)
@@ -108,51 +95,47 @@ func (gde *GoDanceEngine) DeleteField(indexName string, fieldName string) error 
 	return gde.idxManager.DeleteField(indexName, fieldName)
 }
 
-// DocumentOptions
-// @Description 对文档的增删改
-// @Param method 请求方式 PUT,POST,DELETE
-// @Param params 请求参数
-// @Param body  请求体
-// @Return string Json格式的字符串，表示成功或者失败
-// @Return error 任何错误
-func (gde *GoDanceEngine) DocumentOptions(method string, params map[string]string, body []byte) (string, error) {
-
+func (gde *GoDanceEngine) AddDocument(params map[string]string, body []byte) (string, error) {
 	indexName, hasIndex := params["index"]
-	if !hasIndex {
+	if !hasIndex || indexName == "" {
+		return Fail, errors.New(ParamsError)
+	}
+	document := make(map[string]string)
+	err := json.Unmarshal(body, &document)
+	if err != nil {
+		gde.Logger.Error("[ERROR] Parse JSON Fail : %v ", err)
+		return "", errors.New(JsonParseError)
+	}
+
+	return gde.idxManager.addDocument(indexName, document)
+}
+
+func (gde *GoDanceEngine) DeleteDocument(params map[string]string) (string, error) {
+	indexName, hasIndex := params["index"]
+	if !hasIndex || indexName == "" {
 		return Fail, errors.New(ParamsError)
 	}
 
-	switch method {
-	case "POST":
-		document := make(map[string]string)
-		err := json.Unmarshal(body, &document)
-		if err != nil {
-			gde.Logger.Error("[ERROR] Parse JSON Fail : %v ", err)
-			return "", errors.New(JsonParseError)
-		}
+	pk, haspk := params["_pk"]
+	if !haspk {
+		return Fail, errors.New(NoPrimaryKey)
+	}
 
-		return gde.idxManager.addDocument(indexName, document)
-	case "DELETE":
-		pk, haspk := params["_pk"]
-		if !haspk {
-			return Fail, errors.New(NoPrimaryKey)
-		}
-
-		return gde.idxManager.deleteDocument(indexName, pk)
-	case "PUT":
-
-		document := make(map[string]string)
-		err := json.Unmarshal(body, &document)
-		if err != nil {
-			gde.Logger.Error("[ERROR] Parse JSON Fail : %v ", err)
-			return Fail, errors.New(JsonParseError)
-		}
-
-		return gde.idxManager.updateDocument(indexName, document)
-
-	default:
+	return gde.idxManager.deleteDocument(indexName, pk)
+}
+func (gde *GoDanceEngine) UpdateDocument(params map[string]string, body []byte) (string, error) {
+	indexName, hasIndex := params["index"]
+	if !hasIndex || indexName == "" {
 		return Fail, errors.New(ParamsError)
 	}
+	document := make(map[string]string)
+	err := json.Unmarshal(body, &document)
+	if err != nil {
+		gde.Logger.Error("[ERROR] Parse JSON Fail : %v ", err)
+		return Fail, errors.New(JsonParseError)
+	}
+
+	return gde.idxManager.updateDocument(indexName, document)
 }
 
 // RealTimeSearch
@@ -160,15 +143,10 @@ func (gde *GoDanceEngine) DocumentOptions(method string, params map[string]strin
 // @Param key  关键词
 // @Return string  json格式的返回结果
 // @Return error 任何错误
-func (gde *GoDanceEngine) RealTimeSearch(key string) (string, error) {
+func (gde *GoDanceEngine) RealTimeSearch(key string) []string {
 
 	search := gde.trie.Search(key, true)
-	results, err := json.Marshal(search)
-	if err == nil {
-		return string(results), err
-	}
-
-	return "", nil
+	return search
 }
 
 // RelatedSearch
@@ -176,15 +154,10 @@ func (gde *GoDanceEngine) RealTimeSearch(key string) (string, error) {
 // @Param key  关键词
 // @Return string  json格式的返回结果
 // @Return error 任何错误
-func (gde *GoDanceEngine) RelatedSearch(key string) (string, error) {
+func (gde *GoDanceEngine) RelatedSearch(key string) []string {
 
 	search := gde.trie.Search(key, false)
-	results, err := json.Marshal(search)
-	if err == nil {
-		return string(results), err
-	}
-
-	return "", nil
+	return search
 }
 
 // Search
@@ -192,21 +165,23 @@ func (gde *GoDanceEngine) RelatedSearch(key string) (string, error) {
 // @Param params 请求参数
 // @Return string 搜索相关的Json字符串
 // @Return error
-func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
+func (gde *GoDanceEngine) Search(params map[string]string) (utils.DefaultResult, error) {
 
 	startTime := time.Now()
 	indexName, hasIndex := params["index"]
 	pageSize, hasPageSize := params["pageSize"]
 	curPage, hasCurPage := params["curPage"]
 
+	var resultSet utils.DefaultResult
+
 	if !hasIndex || !hasPageSize || !hasCurPage {
-		return Fail, errors.New(ParamsError)
+		return resultSet, errors.New(ParamsError)
 	}
 
 	//获取索引
 	idx := gde.idxManager.GetIndex(indexName)
 	if idx == nil {
-		return NotFound, errors.New(IndexNotFound)
+		return resultSet, errors.New(IndexNotFound)
 	}
 
 	// 建立过滤条件和搜索条件
@@ -222,6 +197,8 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 			docQueryNodes = boolea.MergeDocIdNode(docQueryNodes, ids)
 		}
 	}
+
+	fmt.Printf("%v\n", docQueryNodes)
 
 	// todo 对每个 Ids 求交集
 	for _, filter := range searchFilters {
@@ -243,26 +220,33 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	// 使用 bool模型汇总
 	docMergeFilter := boolea.DocMergeFilter(docQueryNodes, docFilterIds, notDocQueryNodes)
 
+	fmt.Printf("merge : %v\n", docMergeFilter)
+
 	// todo 对docMergeFilter的所有文档进行权重排序
 	docWeightSort := DocWeightSort(docMergeFilter, notDocQueryNodes, searchQueries, idx)
 
+	fmt.Printf("weightsort : %v\n", docWeightSort)
+
 	lens := int64(len(docWeightSort))
+
+	fmt.Printf("lens : %v\n", lens)
+
 	if lens == 0 {
-		return NotFound, nil
+		return resultSet, nil
 	}
 
 	//计算起始和终止位置
 	start, end, err := gde.calcStartEnd(pageSize, curPage, lens)
-	if err != nil {
-		return NotFound, nil
-	}
 
-	var resultSet DefaultResult
+	if err != nil {
+		return resultSet, nil
+	}
 
 	resultSet.Results = make([]map[string]string, 0)
 	for _, docId := range docWeightSort[start:end] {
 		doc, ok := idx.GetDocument(docId)
 		doc["id"] = fmt.Sprintf("%v", docId)
+		fmt.Println(doc)
 		if ok {
 			resultSet.Results = append(resultSet.Results, doc)
 		}
@@ -275,12 +259,13 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	endTime := time.Now()
 	resultSet.CostTime = fmt.Sprintf("%v", endTime.Sub(startTime))
 
-	r, err := json.Marshal(resultSet)
+	// fmt.Println(resultSet.TotalCount)
+
 	if err != nil {
-		return NotFound, err
+		return resultSet, err
 	}
 
-	return string(r), nil
+	return resultSet, nil
 }
 
 // calcStartEnd
@@ -302,8 +287,12 @@ func (gde *GoDanceEngine) calcStartEnd(ps, cp string, docSize int64) (int64, int
 		curPage = 1
 	}
 
-	start := curPage * (pageSize - 1)
-	end := curPage * pageSize
+	// fmt.Println(curPage, pageSize)
+
+	start := pageSize * (curPage - 1)
+	end := pageSize * curPage
+
+	// fmt.Println(start, end)
 
 	if start >= docSize {
 		return 0, 0, fmt.Errorf("out page")
@@ -323,10 +312,13 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 	searchFilters := make([]utils.SearchFilters, 0)
 	searchQueries := make([]utils.SearchQuery, 0)
 	notSearchQueries := make([]utils.SearchQuery, 0)
+
+	fmt.Println(params)
+
 	for param, value := range params {
 
 		// todo 还有一些其余的请求参数
-		if param == "index" || param == "pageSize" || param == "curSize" {
+		if param == "index" || param == "pageSize" || param == "curPage" {
 			continue
 		}
 
@@ -374,6 +366,9 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 			var query utils.SearchQuery
 			// 针对某个字段名的过滤
 			query.FieldName = param[1:]
+			if value == "" {
+				continue
+			}
 			query.Value = value
 			notSearchQueries = append(searchQueries, query)
 
@@ -403,7 +398,30 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 		}
 	}
 
+	fmt.Printf("query:%v\n", searchQueries)
+	fmt.Printf("filter:%v\n", searchFilters)
+	fmt.Printf("notsearch:%v\n", notSearchQueries)
+
 	return searchFilters, searchQueries, notSearchQueries
+}
+
+func (gde *GoDanceEngine) GetDocById(indexName, id string) (map[string]string, error) {
+
+	idx := gde.idxManager.GetIndex(indexName)
+	if idx == nil {
+		return nil, errors.New("index not found")
+	}
+
+	docId, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return nil, errors.New("docId error")
+	}
+	document, ok := idx.GetDocument(uint64(docId))
+	if !ok {
+		return nil, errors.New("doc not found")
+	}
+	return document, nil
+
 }
 
 //

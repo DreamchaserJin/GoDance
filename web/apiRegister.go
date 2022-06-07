@@ -1,11 +1,12 @@
 package web
 
 import (
-	Search "GoDance/web/AA_Back_End"
 	"GoDance/web/Email"
+	"GoDance/web/idxOpt"
 	myjwt "GoDance/web/jwt"
 	"GoDance/web/mysql"
 	Redis "GoDance/web/redis"
+	Search "GoDance/web/websearch"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -53,8 +54,17 @@ func Register(r *gin.Engine) {
 	//判断某个id在收藏夹中是否存在
 	r.POST("/godance/is_not", myjwt.JWTAuthMiddleware(), Redis.Is_not())
 
-	//搜索方面
+	//搜索
 	r.GET("/search_text", Search.Get_relation())
 	r.GET("/search_final", Search.Get_related())
 	r.POST("/godance/get_essay", Search.Get_essay())
+
+	// 对索引的操作
+	r.POST("/create", idxOpt.CreateIndex())
+
+	// 对文档的操作
+	r.POST("/update", idxOpt.AddDocument())
+	r.DELETE("/update", idxOpt.DeleteDocument())
+	r.PUT("/update", idxOpt.UpdateDocument())
+
 }
