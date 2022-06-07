@@ -3,13 +3,14 @@ package related
 import (
 	"GoDance/utils"
 	"container/heap"
+	"encoding/json"
 )
 
 type Trie struct {
 	// rune代表一个中文字符
-	children  map[rune]*Trie
-	isWord    bool
-	frequency uint64
+	Children  map[rune]*Trie `json:"children"`
+	IsWord    bool           `json:"is_word"`
+	Frequency uint64         `json:"frequency"`
 }
 
 //
@@ -23,10 +24,18 @@ func Constructor(triePath string) Trie {
 
 	// todo 反序列化
 	if utils.Exist(triePath) {
-
+		json.Unmarshal([]byte(triePath), trieTree)
 	}
 
 	return trieTree
+}
+
+func SerializationTrie(trieTree Trie) ([]byte, error) {
+	triePath, err := json.Marshal(trieTree)
+	if err != nil {
+		return nil, err
+	}
+	return triePath, nil
 }
 
 //
@@ -38,16 +47,16 @@ func Constructor(triePath string) Trie {
 func (t *Trie) Insert(words string) {
 	node := t
 	for _, ch := range words {
-		if node.children == nil {
-			node.children = make(map[rune]*Trie)
+		if node.Children == nil {
+			node.Children = make(map[rune]*Trie)
 		}
-		if node.children[ch] == nil {
-			node.children[ch] = &Trie{}
+		if node.Children[ch] == nil {
+			node.Children[ch] = &Trie{}
 		}
-		node = node.children[ch]
+		node = node.Children[ch]
 	}
-	node.frequency++
-	node.isWord = true
+	node.Frequency++
+	node.IsWord = true
 }
 
 //
@@ -116,10 +125,10 @@ func (t *Trie) searchWord(words string) []string {
 	q.Add(node, []rune(words)[:n-1], []rune(words)[n-1])
 	for q.Size > 0 {
 		no, ru := q.Remove()
-		if no.isWord == true {
+		if no.IsWord == true {
 			temp := &Related{
-				frequency: no.frequency,
-				value:     string(ru),
+				Frequency: no.Frequency,
+				Value:     string(ru),
 			}
 			heap.Push(h, temp)
 			count++
@@ -130,7 +139,7 @@ func (t *Trie) searchWord(words string) []string {
 		if count >= 50 {
 			break
 		}
-		for k, v := range no.children {
+		for k, v := range no.Children {
 			q.Add(v, ru, k)
 		}
 	}
@@ -139,7 +148,7 @@ func (t *Trie) searchWord(words string) []string {
 	for h.Len() > 0 {
 		r := heap.Pop(h).(*Related)
 		// 因为是小顶堆，堆顶最小，所以逆序存储
-		relaters[h.Len()] = r.value
+		relaters[h.Len()] = r.Value
 	}
 
 	return relaters
@@ -155,10 +164,10 @@ func (t *Trie) searchWord(words string) []string {
 func (t *Trie) searchPrefix(prefix string) *Trie {
 	node := t
 	for _, ch := range prefix {
-		if node.children[ch] == nil {
+		if node.Children[ch] == nil {
 			return nil
 		}
-		node = node.children[ch]
+		node = node.Children[ch]
 	}
 	return node
 }

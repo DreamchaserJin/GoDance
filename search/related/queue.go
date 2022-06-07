@@ -8,7 +8,7 @@ import (
 type Queue struct {
 	Array []*Trie
 	// 广搜过程中记录整个单词
-	word [][]rune
+	Word [][]rune
 	Size uint64
 	Lock sync.Mutex
 }
@@ -23,7 +23,7 @@ func (q *Queue) Add(v *Trie, pre []rune, ch rune) {
 	p := make([]rune, len(pre))
 	copy(p, pre)
 	p = append(p, ch)
-	q.word = append(q.word, p)
+	q.Word = append(q.Word, p)
 
 	q.Size++
 }
@@ -40,8 +40,8 @@ func (q *Queue) Remove() (*Trie, []rune) {
 	v := q.Array[0]
 	q.Array = q.Array[1:]
 
-	w := q.word[0]
-	q.word = q.word[1:]
+	w := q.Word[0]
+	q.Word = q.Word[1:]
 	q.Size--
 	return v, w
 }

@@ -53,9 +53,17 @@ type CoordWeight struct {
 }
 type CoordWeightSort []CoordWeight
 
-func (cw CoordWeightSort) Len() int           { return len(cw) }
-func (cw CoordWeightSort) Less(i, j int) bool { return cw[i].Weight > cw[j].Weight }
-func (cw CoordWeightSort) Swap(i, j int)      { cw[i], cw[j] = cw[j], cw[i] }
+func (cw CoordWeightSort) Len() int { return len(cw) }
+func (cw CoordWeightSort) Less(i, j int) bool {
+	if cw[i].Weight > cw[j].Weight {
+		return true
+	} else if cw[i].Weight == cw[j].Weight {
+		return cw[i].DocId < cw[i].DocId
+	} else {
+		return false
+	}
+}
+func (cw CoordWeightSort) Swap(i, j int) { cw[i], cw[j] = cw[j], cw[i] }
 
 //
 //  CompareFloat64
