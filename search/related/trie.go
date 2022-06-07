@@ -1,7 +1,6 @@
 package related
 
 import (
-	"GoDance/utils"
 	"container/heap"
 )
 
@@ -60,34 +59,16 @@ func (t *Trie) Insert(words string) {
 func (t *Trie) Search(words string, BOOL bool) []string {
 	// 如果BOOL为false则是相关搜索
 	if BOOL == false {
-		isOne := true
 		relaters := make([]string, 0)
-		// 分词
-		segmenter := utils.GetGseSegmenter()
-		terms := segmenter.CutSearch(words, false)
+		// 先搜索相关词
+		relaters = t.searchWord(words)
+		if len(relaters) == 10 {
+			return relaters
+		}
 
-		for i := 0; i < len(terms); {
-			// 如果是第一次就搜索原搜索词words
-			if isOne == true {
-				relaters = t.searchWord(words)
-				if len(relaters) < 10 {
-					isOne = false
-				} else {
-					return relaters
-				}
-			} else {
-				// 不是第一次就搜索分词,然后添加到末尾
-				relaters = append(relaters, t.searchWord(terms[i])...)
-				if len(relaters) >= 10 {
-					return relaters[:10]
-				}
-				i++
-			}
-		}
-		// 到这里说明肯定不足10个，直接补全words算了
-		for len(relaters) < 10 {
-			relaters = append(relaters, words)
-		}
+		// 搜不满从trie根搜
+		relaters = append(relaters, t.searchWord("")...)
+		return relaters
 	}
 	// 如果是实时搜索立马返回
 	return t.searchWord(words)
@@ -95,7 +76,7 @@ func (t *Trie) Search(words string, BOOL bool) []string {
 
 //
 //  searchWord
-//  @Description: 查询以words开头的单词
+//  @Description: 查询以words开头的单词,返回结果 <= 10个
 //  @receiver t
 //  @param words
 //  @return []string
@@ -139,6 +120,9 @@ func (t *Trie) searchWord(words string) []string {
 		r := heap.Pop(h).(*Related)
 		// 因为是小顶堆，堆顶最小，所以逆序存储
 		relaters[h.Len()] = r.Value
+	}
+	if len(relaters) > 10 {
+		return relaters[:10]
 	}
 
 	return relaters
