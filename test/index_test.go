@@ -81,7 +81,7 @@ func TestAddDocument(t *testing.T) {
 	index := gdindex.NewIndexFromLocalFile("gk", utils.IDX_ROOT_PATH, logger)
 
 	content := make(map[string]string, 0)
-	csvTable := utils.LoadCsvFile("/home/iceberg/桌面/高考作文1.csv", 2)
+	csvTable := utils.LoadCsvFile("/home/iceberg/桌面/高考作文.csv", 22)
 	for i, val := range csvTable.Records {
 		content["id"] = strconv.Itoa(i + 20)
 		content["year"] = val.GetString("year")
