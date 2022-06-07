@@ -422,7 +422,7 @@ func DocWeightSort(docMergeFilter []uint64, notDocQueryNodes []utils.DocIdNode, 
 	// 某个单词在对应文档中的TFIDF值
 	//wordDocTFIDF := make(map[string][]utils.DocIdNode)
 	// 搜索词向量权重
-	vectorKey := make([]float64, docLen)
+	vectorKey := make([]float64, keyLen)
 	// 所有文档向量
 	vectorAllDoc := make(map[uint64][]float64, docLen)
 	// 初始化类似于二维数组
