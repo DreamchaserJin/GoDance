@@ -250,7 +250,7 @@ func (f *Field) serialization(segmentName string, btdb *tree.BTreeDB) error {
 	}
 
 	if f.ivt != nil {
-		err := f.ivt.serialization(segmentName, f.btree)
+		err := f.ivt.serialization(segmentName)
 		if err != nil {
 			f.Logger.Error("[ERROR] Field Serialization Error : %v", err)
 			return err
