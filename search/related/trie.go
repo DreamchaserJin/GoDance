@@ -24,6 +24,7 @@ func Constructor(triePath string) Trie {
 
 	var trieTree = Trie{}
 
+	// todo 初始化trie树，将triePath文件下的搜索词插入到字典树中
 	fd, err := os.OpenFile(engine.TriePath, os.O_RDWR, 0644)
 	if err != nil {
 		panic(err)
