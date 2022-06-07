@@ -7,10 +7,12 @@ import (
 	"GoDance/search/related"
 	"GoDance/search/weight"
 	"GoDance/utils"
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -314,6 +316,14 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 	notSearchQueries := make([]utils.SearchQuery, 0)
 
 	fmt.Println(params)
+	// 打开要写入的文件
+	trieFd, err := os.OpenFile(TriePath, os.O_CREATE|os.O_APPEND, 0644)
+	defer trieFd.Close()
+	writer := bufio.NewWriter(trieFd)
+	defer writer.Flush()
+	if err != nil {
+		return nil, nil, nil
+	}
 
 	for param, value := range params {
 
@@ -380,7 +390,10 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 			gde.trie.Insert(value)
 
 			// todo 将value写入TriePath的文件中，可以设置一个n值，个数到达n再一起写入
-
+			_, err2 := writer.WriteString(value + "\n")
+			if err2 != nil {
+				return nil, nil, nil
+			}
 			fieldType, ok := idx.Fields[param]
 			if ok {
 				switch fieldType {
