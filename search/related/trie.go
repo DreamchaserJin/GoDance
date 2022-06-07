@@ -3,14 +3,13 @@ package related
 import (
 	"GoDance/utils"
 	"container/heap"
-	"encoding/json"
 )
 
 type Trie struct {
 	// rune代表一个中文字符
-	Children  map[rune]*Trie `json:"children"`
-	IsWord    bool           `json:"is_word"`
-	Frequency uint64         `json:"frequency"`
+	Children  map[rune]*Trie
+	IsWord    bool
+	Frequency uint64
 }
 
 //
@@ -22,20 +21,11 @@ func Constructor(triePath string) Trie {
 
 	var trieTree = Trie{}
 
-	// todo 反序列化
-	if utils.Exist(triePath) {
-		json.Unmarshal([]byte(triePath), trieTree)
-	}
+	// todo 初始化trie树，将triePath文件下的搜索词插入到字典树中
+	// todo 插入操作
+	trieTree.Insert("words")
 
 	return trieTree
-}
-
-func SerializationTrie(trieTree Trie) ([]byte, error) {
-	triePath, err := json.Marshal(trieTree)
-	if err != nil {
-		return nil, err
-	}
-	return triePath, nil
 }
 
 //

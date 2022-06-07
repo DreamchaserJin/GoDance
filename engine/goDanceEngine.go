@@ -376,8 +376,10 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 			segmenter := utils.GetGseSegmenter()
 			var terms = make([]string, 0)
 
-			// todo value 加进 Trie 树
+			// value 加进 Trie 树
 			gde.trie.Insert(value)
+
+			// todo 将value写入TriePath的文件中，可以设置一个n值，个数到达n再一起写入
 
 			fieldType, ok := idx.Fields[param]
 			if ok {
