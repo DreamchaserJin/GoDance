@@ -276,6 +276,14 @@ func (idx *Index) AddDocument(content map[string]string) (uint64, error) {
 		return 0, errors.New("index has no Field")
 	}
 
+	// 在段内文档数到达阈值时进行持久化
+	if idx.memorySegment != nil && idx.memorySegment.MaxDocId-idx.memorySegment.StartDocId >= utils.MAX_SEGMENT_SIZE {
+		err := idx.SyncMemorySegment()
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	if idx.memorySegment == nil {
 		idx.segmentMutex.Lock()
 
@@ -316,7 +324,6 @@ func (idx *Index) AddDocument(content map[string]string) (uint64, error) {
 		}
 
 	}
-	// todo 在段内文档数到达阈值时进行持久化
 	return docId, idx.memorySegment.AddDocument(docId, content)
 }
 

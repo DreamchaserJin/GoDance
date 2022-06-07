@@ -17,6 +17,8 @@ const IDX_ROOT_PATH string = "./data/"
 // FALCONENGINENAME base名称
 const GODANCEENGINE string = "GoDanceEngine"
 
+const MAX_SEGMENT_SIZE uint64 = 50000
+
 type DocIdNode struct {
 	Docid  uint64
 	WordTF float64
