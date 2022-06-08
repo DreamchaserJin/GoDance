@@ -88,9 +88,17 @@ func AppendSelfLog(entry *LogEntry) {
 }
 
 // CommitLog 根据日志id提交日志到状态机中
-func CommitLog(id uint64) (res bool) {
+// @id 提交日志id
+// @preId 上一次提交日志id
+// return res 是否提交成功 ;committedId 方法执行完成后的最新提交日志id
+func CommitLog(id uint64, preId uint64) (res bool, committedId uint64) {
 	logMutex.Lock()
-	res = logs[id2index[id]].load2State()
+	//只有前一个提交日志id一致才能提交
+	if preId == latestCommitted {
+		res = logs[id2index[id]].load2State()
+		res = true
+	}
+	committedId = latestCommitted
 	logMutex.Unlock()
 	return
 }

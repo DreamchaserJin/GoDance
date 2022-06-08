@@ -22,7 +22,6 @@ var (
 type Server struct {
 }
 
-//todo 投票策略需要修改，日志完整性高的跟随者（也就是最后一条日志项对应的任期编号值更大，索引号更大），二元组需要变为任期编号，以及最新一条日志id
 type VoteArgs struct {
 	//任期
 	Term int64
@@ -67,9 +66,12 @@ func (s *Server) RequestVote(ctx context.Context, r *VoteArgs, res *VoteReply) e
 
 type HeartArgs struct {
 	//todo 发送最新提交的日志id和前一个节点的id
+	//前一个未提交的日志id
+	PreCommitId uint64
+	//最新提交的日志id
 	CommittedId uint64
 	//latest log id(committed)
-	LogEntryId uint64
+	//LogEntryId uint64
 	//任期
 	Term int64
 	//nodeID
@@ -83,36 +85,42 @@ type HeartReply struct {
 	//接受到探活请求的任期
 	Term int64
 	//节点状态
-	State CMState
-	//上一次提交的日志id
-	lastCommitted uint64
+	//State CMState
+	//Follower最近一次提交的日志id
+	LatestCommitted uint64
 	//最近一次增加的日志id
-	latestLog uint64
+	//latestLog uint64
 }
 
 // HeatBeat 探活请求，由主节点来调用此RPC方法
 //同时此Rpc调用也负责日志的同步
-func (s *Server) HeatBeat(ctx context.Context, r *HeartArgs, res *HeartReply) error {
+//此RPC的作用有两个：1.表示Leader成功竞选或者Leader还活着；2.提交日志，如果提交不成功返回上一个提交的id，以便Leader进行同步
+func (s *Server) HeatBeat(ctx context.Context, a *HeartArgs, r *HeartReply) error {
 	self := State.selfState
-	res.State = State.selfState.state
-	//如果发现小于自己任期时，拒绝承认该节点
-	if self.masterId != r.Id && r.Term < self.term {
-		res.Term = State.selfState.term
+	//res.State = State.selfState.state
+	//如果发现小于自己任期时，拒绝承认该节点，不进行日志同步
+	if self.masterId != a.Id && a.Term < self.term {
+		r.Term = State.selfState.term
 		return nil
 	}
 	//当发现探活请求的主节点和自己认为的主节点不一致且任期比自己的大时，切换主节点
-	if self.masterId != r.Id && r.Term > self.term {
-		self.masterId = r.Id
+	if self.masterId != a.Id && a.Term > self.term {
+		self.masterId = a.Id
 		//退出主节点时需要主动关闭clients
 		for _, c := range clients {
-			c.client.Close()
+			err := c.client.Close()
+			if err != nil {
+				return err
+			}
 		}
-		//free up space，trigger GC
-		clients = nil
+		//改变指针，触发GC
+		clients = make(map[int64]*nodeClient)
 	}
-	//todo 判断自身日志是否一致，如果存在该日志但未提交，节点会提交该日志到状态机中
-	res.latestLog = latestLog
-	res.lastCommitted = latestCommitted
+	if res, cid := CommitLog(a.CommittedId, a.PreCommitId); res {
+		r.Success = true
+	} else {
+		r.LatestCommitted = cid
+	}
 	heartBeat = time.Now()
 	return nil
 }
@@ -142,8 +150,10 @@ func (s *Server) AppendEntries(ctx context.Context, args *EntriesArgs, reply *Co
 	for _, e := range args.IncreasedLog {
 		AppendSelfLog(&e)
 	}
-	for _, id := range args.CommittedIds {
-		res := CommitLog(id)
+
+	for id := range args.CommittedIds {
+		//todo 修改该调用方式
+		//res,cid:= CommitLog(id,)
 		if !res {
 			log.Panicln("节点提交失败！")
 			break
