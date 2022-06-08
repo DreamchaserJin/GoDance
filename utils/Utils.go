@@ -19,6 +19,9 @@ const TRIE_PATH string = "./data/trieTree.tr"
 const GODANCEENGINE string = "GoDanceEngine"
 const MAX_SEGMENT_SIZE uint64 = 50000
 
+// 停用词文件
+const STOP_WORD_FILE_PATH = "./stopWords.txt"
+
 type DocIdNode struct {
 	Docid  uint64
 	WordTF float64

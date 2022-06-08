@@ -1,7 +1,10 @@
 package utils
 
 import (
+	"bufio"
 	"github.com/go-ego/gse"
+	"io"
+	"os"
 )
 
 type GseSegmenter struct {
@@ -15,6 +18,32 @@ func init() {
 	if err != nil {
 		panic(err.Error())
 	}
+	err = segmenter.LoadStop()
+	if err != nil {
+		panic(err.Error())
+	}
+	// 加载停用词
+	fd, err := os.OpenFile(STOP_WORD_FILE_PATH, os.O_RDONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer fd.Close()
+	reader := bufio.NewReader(fd)
+	stopWords := make([]string, 16)
+	for {
+		word, _, e := reader.ReadLine()
+		if e == io.EOF {
+			break
+		}
+		if e != nil {
+			panic(err)
+		}
+		stopWords = append(stopWords, string(word))
+	}
+	err = gseSegmenter.segmenter.LoadStop()
+	if err != nil {
+		return
+	}
 	gseSegmenter.segmenter = segmenter
 }
 
@@ -22,12 +51,19 @@ func GetGseSegmenter() GseSegmenter {
 	return gseSegmenter
 }
 
+func AddStopWords() {
+
+}
+
 // AddDict
 //  @Description: 添加字典
 //  @receiver this
 //  @param file 字典所在路径
 func (this *GseSegmenter) AddDict(file ...string) {
-	this.segmenter.LoadDict(file...)
+	err := this.segmenter.LoadDict(file...)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // CutAll
@@ -56,5 +92,5 @@ func (this *GseSegmenter) Cut(text string, hmm ...bool) []string {
 //  @param hmm
 //  @return []string
 func (this *GseSegmenter) CutSearch(text string, hmm ...bool) []string {
-	return this.segmenter.CutSearch(text, hmm...)
+	return this.segmenter.Stop(this.segmenter.CutSearch(text, hmm...))
 }

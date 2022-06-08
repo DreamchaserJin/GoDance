@@ -18,12 +18,8 @@ require (
 )
 
 require (
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-gonic/gin v1.8.0
-	github.com/go-redis/redis v6.15.9+incompatible
-	github.com/go-sql-driver/mysql v1.6.0
 	github.com/smallnest/rpcx v1.7.4
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
 )
 
 require (
@@ -104,6 +100,7 @@ require (
 	github.com/xtaci/kcp-go v5.4.20+incompatible // indirect
 	go.opentelemetry.io/otel v1.7.0 // indirect
 	go.opentelemetry.io/otel/trace v1.7.0 // indirect
+	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
 	golang.org/x/net v0.0.0-20220531201128-c960675eff93 // indirect
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f // indirect
