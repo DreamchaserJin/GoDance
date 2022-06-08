@@ -247,7 +247,7 @@ func (gde *GoDanceEngine) Search(params map[string]string) (utils.DefaultResult,
 	for _, docId := range docWeightSort[start:end] {
 		doc, ok := idx.GetDocument(docId)
 		doc["id"] = fmt.Sprintf("%v", docId)
-		fmt.Println(doc)
+		// fmt.Println(doc)
 		if ok {
 			resultSet.Results = append(resultSet.Results, doc)
 		}
@@ -316,7 +316,7 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 
 	fmt.Println(params)
 	// 打开要写入的文件
-	trieFd, err := os.OpenFile(utils.TRIE_PATH, os.O_CREATE|os.O_APPEND, 0644)
+	trieFd, err := os.OpenFile(utils.TRIE_PATH, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 	defer trieFd.Close()
 	writer := bufio.NewWriter(trieFd)
 	defer writer.Flush()
@@ -388,8 +388,8 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 			gde.trie.Insert(value)
 
 			// todo 将value写入TriePath的文件中，可以设置一个n值，个数到达n再一起写入
-			fmt.Println("写入 Trie 树")
-			_, err2 := writer.WriteString(value + "\n")
+			fmt.Println("写入 Trie 树: ", value)
+			_, err2 := writer.WriteString(fmt.Sprintf("%v%v", value, "\n"))
 			if err2 != nil {
 				return nil, nil, nil
 			}
