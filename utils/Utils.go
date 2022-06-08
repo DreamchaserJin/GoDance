@@ -335,5 +335,13 @@ func PostRequest(url string, b []byte) ([]byte, error) {
 	}
 
 	return result, nil
+}
+
+func DocIdNodeChangeUint64(docIdNode []DocIdNode) []uint64 {
+	changeUint64 := make([]uint64, len(docIdNode))
+	for i := range docIdNode {
+		changeUint64[i] = docIdNode[i].Docid
+	}
+	return changeUint64
 
 }

@@ -187,46 +187,46 @@ func (gde *GoDanceEngine) Search(params map[string]string) (utils.DefaultResult,
 
 	// 建立过滤条件和搜索条件
 	searchFilters, searchQueries, notSearchQueries := gde.parseParams(params, idx)
-	docQueryNodes := make([]utils.DocIdNode, 0)
+	titleQueryNodes := make([]utils.DocIdNode, 0)
 	docFilterIds := make([]uint64, 0)
 	notDocQueryNodes := make([]utils.DocIdNode, 0)
 
-	// todo 对每个 ids 求交集
+	// todo 对每个 搜索词分词后的文档 求并集
 	for _, query := range searchQueries {
 		ids, ok := idx.SearchKeyDocIds(query)
 		if ok {
-			docQueryNodes = boolea.MergeDocIdNode(docQueryNodes, ids)
+			titleQueryNodes = boolea.UnionDocIdNode(titleQueryNodes, ids)
 		}
 	}
+	fmt.Printf("query: %v\n", titleQueryNodes)
 
-	fmt.Printf("query: %v\n", docQueryNodes)
-
-	// todo 对每个 Ids 求交集
+	// todo 对每个 筛选词文档 求交集
 	for _, filter := range searchFilters {
 		ids, ok := idx.SearchFilterDocIds(filter)
 		if ok {
-			docFilterIds = boolea.Merge(docFilterIds, ids)
+			docFilterIds = boolea.IntersectionUint64(docFilterIds, ids)
 		}
 	}
 	fmt.Printf("filter: %v\n", docFilterIds)
 
-	// todo 需要建立一个关键词过滤的集合
+	// todo 对每个过滤词 求并集
 	for _, query := range notSearchQueries {
 		ids, ok := idx.SearchKeyDocIds(query)
 		if ok {
-			notDocQueryNodes = boolea.MergeDocIdNode(notDocQueryNodes, ids)
+			notDocQueryNodes = boolea.UnionDocIdNode(notDocQueryNodes, ids)
 		}
 	}
 	fmt.Printf("notsearch: %v\n", notDocQueryNodes)
 
-	// todo 对 docQueryNodes 和 docFilterIds求交集, 注意类型 []DocIdNode 和 []uint64
-	// 使用 bool模型汇总
-	docMergeFilter := boolea.DocMergeFilter(docQueryNodes, docFilterIds, notDocQueryNodes)
-
-	fmt.Printf("merge : %v\n", docMergeFilter)
+	// todo 对 所有搜索词（标题、内容）求交集，再跟筛选词求交集，再对过滤词 NOT
+	// 搜索词跟筛选词求交集
+	keyFilter := boolea.IntersectionDocIdAndUint64(titleQueryNodes, docFilterIds)
+	// not
+	docAndNot := boolea.DocAndNot(keyFilter, notDocQueryNodes)
+	fmt.Printf("merge : %v\n", docAndNot)
 
 	// todo 对docMergeFilter的所有文档进行权重排序
-	docWeightSort := DocWeightSort(docMergeFilter, notDocQueryNodes, searchQueries, idx)
+	docWeightSort := DocWeightSort(docAndNot, notDocQueryNodes, searchQueries, idx)
 
 	lens := int64(len(docWeightSort))
 	fmt.Printf("lens : %v\n", lens)
