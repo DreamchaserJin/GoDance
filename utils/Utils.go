@@ -107,11 +107,6 @@ const (
 	FILT_OVER  uint64 = 2 //大于
 	FILT_LESS  uint64 = 3 //小于
 	FILT_RANGE uint64 = 4 //范围内
-	//FILT_NOT        uint64 = 5  //不等于
-	//FILT_STR_PREFIX uint64 = 11 //前缀
-	//FILT_STR_SUFFIX uint64 = 12 //后缀
-	//FILT_STR_RANGE  uint64 = 13 //之内
-	//FILT_STR_ALL    uint64 = 14 //全词
 )
 
 type TermInfo struct {
@@ -135,13 +130,11 @@ type SearchQuery struct {
 
 // FSSearchFilted function description : 过滤接口数据结构，内部都是求交集
 type SearchFilters struct {
-	FieldName string   `json:"_field"`
-	Start     int64    `json:"_start"`
-	End       int64    `json:"_end"`
-	Range     []int64  `json:"_range"`
-	Type      uint64   `json:"_type"`
-	MatchStr  string   `json:"_matchstr"`
-	RangeStr  []string `json:"_rangestr"`
+	FieldName string  `json:"_field"`
+	Start     int64   `json:"_start"`
+	End       int64   `json:"_end"`
+	Range     []int64 `json:"_range"`
+	Type      uint64  `json:"_type"`
 }
 
 // 查询返回的数据结构项
@@ -345,5 +338,13 @@ func PostRequest(url string, b []byte) ([]byte, error) {
 	}
 
 	return result, nil
+}
+
+func DocIdNodeChangeUint64(docIdNode []DocIdNode) []uint64 {
+	changeUint64 := make([]uint64, len(docIdNode))
+	for i := range docIdNode {
+		changeUint64[i] = docIdNode[i].Docid
+	}
+	return changeUint64
 
 }

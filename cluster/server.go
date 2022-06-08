@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 )
@@ -9,7 +10,7 @@ import (
 var (
 	//上一次投票的任期
 	//todo 这里需要直接变为集群状态中的term
-	lastTerm int64 = 0
+	//lastTerm int64 = 0
 	//距离上次正式选举成功之后投票的节点,key是节点，val是任期，每次选举成功则会清除
 	votedNodes map[int64]int64
 	//上一次心跳请求的时间
@@ -27,8 +28,8 @@ type VoteArgs struct {
 	Term int64
 	//最新增加的日志id
 	LogId uint64
-	//最新提交日志ID
-	CommittedId uint64
+	//最新增加的日志term
+	LogTerm int64
 	//nodeID
 	Id int64
 }
@@ -38,32 +39,35 @@ type VoteReply struct {
 
 // RequestVote 请求投票，候选节点通过rpc远程调用从节点的拉票方法来获取票数
 func (s *Server) RequestVote(ctx context.Context, r *VoteArgs, res *VoteReply) error {
-
-	//重置心跳
-	heartBeat = time.Now()
-	defer serverMutex.RUnlock()
-	serverMutex.RLock()
 	//之前相同任期内投过票的节点也会投票，此举是为了保证幂等性
 	if votedNodes[r.Id] == r.Term {
 		res.Success = true
 		return nil
 	}
-	//todo 日志完整性高于自身，日志的term要大于等于自身，不需要CommittedId大于自身，因为committed同步取决于Leader，该更新不一定占大多数
-	//日志完整度大于自身且超过自身投过的任期时，才会支持该节点
-	if r.LogId >= latestLog && r.CommittedId > latestCommitted && r.Term > lastTerm {
+	//如果任期没有大于自身，拒绝投票
+	if r.Term <= State.selfState.term {
+		res.Success = false
+		return nil
+	}
+	//自身任期更新为较大的任期
+	State.selfState.term = r.Term
+	//重置心跳
+	heartBeat = time.Now()
+	defer serverMutex.RUnlock()
+	serverMutex.RLock()
+	//日志完整度(日志id和日志term)大于自身且超过自身的任期时，才会支持该节点
+	if r.LogId >= logs[len(logs)-1].Id && r.LogTerm >= logs[len(logs)-1].Term {
 		defer serverMutex.Unlock()
 		serverMutex.Lock()
-		lastTerm = r.Term
 		votedNodes[r.Id] = r.Term
 		res.Success = true
 	}
-	//todo 更新为较大的任期（无论有没有投票）
-	res.Success = false
 	return nil
 }
 
 type HeartArgs struct {
 	//todo 发送最新提交的日志id和前一个节点的id
+	CommittedId uint64
 	//latest log id(committed)
 	LogEntryId uint64
 	//任期
@@ -119,7 +123,7 @@ type EntryArgs struct {
 }
 
 // AppendEntry RPC called by leader
-//todo 应该合并到心跳请求中
+//todo 这里要明白有些日志对于领导者而言是不存在的，需要验证前者是否一致
 func (s *Server) AppendEntry(ctx context.Context, logEntry *LogEntry, reply *CommonReply) error {
 	// todo 需要验证term是否大于等于自身（保证一旦发起竞选，新的日志将写入失败），以及是否是上一个日志是否一致
 	AppendSelfLog(logEntry)
@@ -132,7 +136,6 @@ type EntriesArgs struct {
 	IncreasedLog []LogEntry
 }
 
-//todo 应该合并到心跳请求中
 // AppendEntries 由Leader来调用，用于同步Leader和Flower日志的一致性
 func (s *Server) AppendEntries(ctx context.Context, args *EntriesArgs, reply *CommonReply) error {
 	// todo 需要验证提交的日志term是否大于等于自身，是否是上一个日志是否一致以及提交committed是否一致
@@ -140,7 +143,11 @@ func (s *Server) AppendEntries(ctx context.Context, args *EntriesArgs, reply *Co
 		AppendSelfLog(&e)
 	}
 	for _, id := range args.CommittedIds {
-		CommitLog(id)
+		res := CommitLog(id)
+		if !res {
+			log.Panicln("节点提交失败！")
+			break
+		}
 	}
 	reply.Success = true
 	return nil

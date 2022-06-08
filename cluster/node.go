@@ -53,6 +53,7 @@ type discoveryNodes struct {
 func (ns *discoveryNodes) DeleteNode(id int64) {
 	n := ns.nodes[id]
 	//如果是主节点，则选择修改节点状态
+	//todo 所有节点都是修改为Dead，过一段时间还是Dead则移除该节点
 	if n.isMasterNode {
 		n.state = Dead
 	}

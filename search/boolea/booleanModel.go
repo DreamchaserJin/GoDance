@@ -4,38 +4,22 @@ import (
 	"GoDance/utils"
 )
 
-//
-//  DocMergeAndFilter
-//  @Description: 布尔模型接口，合并搜索词和范围查询的文档id，过滤掉过滤词的文档id
-//  @param docQueryNodes   		搜索词文档id
-//  @param docFilterIds    		发内查询文档id
-//  @param notDocQueryNodes     过滤词文档id
-//  @return []uint64			返回搜索词相关的文档
-//
-func DocMergeFilter(docQueryNodes []utils.DocIdNode, docFilterIds []uint64, notDocQueryNodes []utils.DocIdNode) []uint64 {
-	// 取出[]uint64
-	docs1 := make([]uint64, 0)
-	for _, v := range docQueryNodes {
-		docs1 = append(docs1, v.Docid)
-	}
-	// 合并搜索词与范围查找的文档
-	docMerge := Merge(docs1, docFilterIds)
-
+func DocAndNot(keyFilter []uint64, notDocQueryNodes []utils.DocIdNode) []uint64 {
 	// 记录要过滤的id
 	notMap := make(map[uint64]bool, 0)
 	for _, v := range notDocQueryNodes {
 		notMap[v.Docid] = true
 	}
 	// NOT 有过滤的id则删除
-	for i := 0; i < len(docMerge); {
-		if notMap[docMerge[i]] == true {
+	for i := 0; i < len(keyFilter); {
+		if notMap[keyFilter[i]] == true {
 			// 删除过滤的文档
-			docMerge = append(docMerge[:i], docMerge[i+1:]...)
+			keyFilter = append(keyFilter[:i], keyFilter[i+1:]...)
 		} else {
 			i++
 		}
 	}
-	return docMerge
+	return keyFilter
 }
 
 //func DocMergeAndFilter1(keyMap map[string][]int, filterMap map[string][]int) []int {
@@ -81,13 +65,13 @@ func DocMergeFilter(docQueryNodes []utils.DocIdNode, docFilterIds []uint64, notD
 //}
 
 //
-//  Merge
-//  @Description: 合并并去重
-//  @param docs1  要合并的文档
-//  @param docs2  要合并的文档
+//  Union
+//  @Description: 求并集
+//  @param docs1
+//  @param docs2
 //  @return []int   返回合并后的文档
 //
-func Merge(docs1 []uint64, docs2 []uint64) []uint64 {
+func UnionUint64(docs1 []uint64, docs2 []uint64) []uint64 {
 	n := len(docs1)
 	m := len(docs2)
 	sorted := make([]uint64, 0)
@@ -116,7 +100,14 @@ func Merge(docs1 []uint64, docs2 []uint64) []uint64 {
 	return sorted
 }
 
-func MergeDocIdNode(docs1 []utils.DocIdNode, docs2 []utils.DocIdNode) []utils.DocIdNode {
+//
+//  UnionDocIdNode
+//  @Description: 求并集
+//  @param docs1
+//  @param docs2
+//  @return []utils.DocIdNode
+//
+func UnionDocIdNode(docs1 []utils.DocIdNode, docs2 []utils.DocIdNode) []utils.DocIdNode {
 	n := len(docs1)
 	m := len(docs2)
 	sorted := make([]utils.DocIdNode, 0)
@@ -143,4 +134,46 @@ func MergeDocIdNode(docs1 []utils.DocIdNode, docs2 []utils.DocIdNode) []utils.Do
 		}
 	}
 	return sorted
+}
+
+//
+//  IntersectionUint64
+//  @Description: 求交集
+//  @param docs1
+//  @param docs2
+//  @return []uint64
+//
+func IntersectionUint64(docs1 []uint64, docs2 []uint64) []uint64 {
+	n := len(docs1)
+	m := len(docs2)
+	sorted := make([]uint64, 0)
+	p1, p2 := 0, 0
+	for {
+		if p1 == n || p2 == m {
+			break
+		}
+		if docs1[p1] < docs2[p2] {
+			p1++
+		} else if docs1[p1] > docs2[p2] {
+			p2++
+		} else {
+			sorted = append(sorted, docs1[p1])
+			p1++
+			p2++
+		}
+	}
+	return sorted
+}
+
+//
+//  IntersectionDocIdAndUint64
+//  @Description: DocIdNode类型跟uint64 求交集
+//  @param docs1
+//  @param docs2
+//  @return []uint64
+//
+func IntersectionDocIdAndUint64(docs1 []utils.DocIdNode, docs2 []uint64) []uint64 {
+	Docs1 := utils.DocIdNodeChangeUint64(docs1)
+
+	return IntersectionUint64(Docs1, docs2)
 }

@@ -4,7 +4,6 @@ import (
 	"GoDance/configs"
 	"github.com/smallnest/rpcx/server"
 	"log"
-	"math/rand"
 	"sync"
 	"time"
 )
@@ -61,7 +60,9 @@ func serverInit() {
 	//心跳检查
 	go func() {
 		for {
-			overtime := checkHeatBeat()
+			//根据配置设置随机超时时间
+			//检查主节点是否近期发送过探活请求
+			overtime, randTime := checkHeatBeat()
 			//如果超时没收到心跳
 			if overtime {
 				//修改状态为无Leader
@@ -75,7 +76,8 @@ func serverInit() {
 					}
 				}
 			}
-			time.Sleep(time.Duration(random))
+			//需要适当扩大检查的间隔，防止误判
+			time.Sleep(time.Duration(randTime))
 		}
 	}()
 	//开启另一个协程监听RPC调用

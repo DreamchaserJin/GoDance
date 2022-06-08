@@ -63,7 +63,7 @@ func (gde *GoDanceEngine) CreateIndex(indexName string, body []byte) error {
 
 	var idx IndexStruct
 	err := json.Unmarshal(body, &idx)
-	fmt.Println(idx)
+	// fmt.Println(idx)
 	if err != nil {
 		gde.Logger.Error("[ERROR]  %v : %v ", JsonParseError, err)
 		return errors.New(JsonParseError)
@@ -187,49 +187,48 @@ func (gde *GoDanceEngine) Search(params map[string]string) (utils.DefaultResult,
 
 	// 建立过滤条件和搜索条件
 	searchFilters, searchQueries, notSearchQueries := gde.parseParams(params, idx)
-	docQueryNodes := make([]utils.DocIdNode, 0)
+	titleQueryNodes := make([]utils.DocIdNode, 0)
 	docFilterIds := make([]uint64, 0)
 	notDocQueryNodes := make([]utils.DocIdNode, 0)
 
-	// todo 对每个 ids 求交集
+	// todo 对每个 搜索词分词后的文档 求并集
 	for _, query := range searchQueries {
 		ids, ok := idx.SearchKeyDocIds(query)
 		if ok {
-			docQueryNodes = boolea.MergeDocIdNode(docQueryNodes, ids)
+			titleQueryNodes = boolea.UnionDocIdNode(titleQueryNodes, ids)
 		}
 	}
+	fmt.Printf("query: %v\n", titleQueryNodes)
 
-	fmt.Printf("%v\n", docQueryNodes)
-
-	// todo 对每个 Ids 求交集
+	// todo 对每个 筛选词文档 求交集
 	for _, filter := range searchFilters {
 		ids, ok := idx.SearchFilterDocIds(filter)
 		if ok {
-			docFilterIds = boolea.Merge(docFilterIds, ids)
+			docFilterIds = boolea.IntersectionUint64(docFilterIds, ids)
 		}
 	}
+	fmt.Printf("filter: %v\n", docFilterIds)
 
-	// todo 需要建立一个关键词过滤的集合
+	// todo 对每个过滤词 求并集
 	for _, query := range notSearchQueries {
 		ids, ok := idx.SearchKeyDocIds(query)
 		if ok {
-			notDocQueryNodes = boolea.MergeDocIdNode(notDocQueryNodes, ids)
+			notDocQueryNodes = boolea.UnionDocIdNode(notDocQueryNodes, ids)
 		}
 	}
+	fmt.Printf("notsearch: %v\n", notDocQueryNodes)
 
-	// todo 对 docQueryNodes 和 docFilterIds求交集, 注意类型 []DocIdNode 和 []uint64
-	// 使用 bool模型汇总
-	docMergeFilter := boolea.DocMergeFilter(docQueryNodes, docFilterIds, notDocQueryNodes)
-
-	fmt.Printf("merge : %v\n", docMergeFilter)
+	// todo 对 所有搜索词（标题、内容）求交集，再跟筛选词求交集，再对过滤词 NOT
+	// 搜索词跟筛选词求交集
+	keyFilter := boolea.IntersectionDocIdAndUint64(titleQueryNodes, docFilterIds)
+	// not
+	docAndNot := boolea.DocAndNot(keyFilter, notDocQueryNodes)
+	fmt.Printf("merge : %v\n", docAndNot)
 
 	// todo 对docMergeFilter的所有文档进行权重排序
-	docWeightSort := DocWeightSort(docMergeFilter, notDocQueryNodes, searchQueries, idx)
-
-	fmt.Printf("weightsort : %v\n", docWeightSort)
+	docWeightSort := DocWeightSort(docAndNot, notDocQueryNodes, searchQueries, idx)
 
 	lens := int64(len(docWeightSort))
-
 	fmt.Printf("lens : %v\n", lens)
 
 	if lens == 0 {
@@ -247,7 +246,7 @@ func (gde *GoDanceEngine) Search(params map[string]string) (utils.DefaultResult,
 	for _, docId := range docWeightSort[start:end] {
 		doc, ok := idx.GetDocument(docId)
 		doc["id"] = fmt.Sprintf("%v", docId)
-		fmt.Println(doc)
+		// fmt.Println(doc)
 		if ok {
 			resultSet.Results = append(resultSet.Results, doc)
 		}
@@ -316,15 +315,14 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 
 	fmt.Println(params)
 	// 打开要写入的文件
-	trieFd, err := os.OpenFile(utils.TRIE_PATH, os.O_CREATE|os.O_APPEND, 0644)
+	trieFd, err := os.OpenFile(utils.TRIE_PATH, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 	defer trieFd.Close()
 	writer := bufio.NewWriter(trieFd)
 	defer writer.Flush()
 	if err != nil {
 		return nil, nil, nil
 	}
-	insertNum := 100
-	insertWords := make([]string, 100)
+	var isInsert = false
 
 	for param, value := range params {
 
@@ -335,13 +333,11 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 
 		switch param[0] {
 		case '-':
-			eqValues := strings.Split(value, ",")
-			sf := utils.SearchFilters{FieldName: param[1:], Type: utils.FILT_EQ, Range: make([]int64, 0)}
-			for _, v := range eqValues {
-				if valueNum, err := strconv.ParseInt(v, 10, 64); err == nil {
-					sf.Range = append(sf.Range, valueNum)
-				}
+			eqValue, err := strconv.ParseInt(value, 10, 64)
+			if err != nil {
+				continue
 			}
+			sf := utils.SearchFilters{FieldName: param[1:], Type: utils.FILT_EQ, Start: eqValue}
 			searchFilters = append(searchFilters, sf)
 		case '>':
 			overValue, err := strconv.ParseInt(value, 10, 64)
@@ -387,21 +383,15 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 			var terms = make([]string, 0)
 
 			// value 加进 Trie 树
-			gde.trie.Insert(value)
+			if !isInsert {
+				gde.trie.Insert(value)
+				isInsert = true
+			}
 
 			// todo 将value写入TriePath的文件中，可以设置一个n值，个数到达n再一起写入
-			fmt.Println("写入 Trie 树")
-			insertNum--
-			if insertNum <= 0 {
-				for _, val := range insertWords {
-					_, err2 := writer.WriteString(val + "\n")
-					if err2 != nil {
-						return nil, nil, nil
-					}
-				}
-				insertNum = 100
-			} else {
-				insertWords[100-insertNum] = value
+			_, err2 := writer.WriteString(fmt.Sprintf("%v%v", value, "\n"))
+			if err2 != nil {
+				return nil, nil, nil
 			}
 			fieldType, ok := idx.Fields[param]
 			if ok {
