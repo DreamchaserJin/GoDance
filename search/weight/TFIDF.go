@@ -1,5 +1,7 @@
 package weight
 
+const TITLEBOOST = 4
+
 // 关键词与TF-IDF
 type WordTfIdf struct {
 	Word  string

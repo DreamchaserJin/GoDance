@@ -499,7 +499,13 @@ func DocWeightSort(docMergeFilter []uint64, notDocQueryNodes []utils.DocIdNode, 
 			var maxTFIDF float64
 			for i := range ids {
 				//ids[i].WordTF = ids[i].WordTF * idf
-				TFIDF := ids[i].WordTF * idf
+				var TFIDF float64
+				if query.FieldName == "title" {
+					TFIDF = ids[i].WordTF * idf * weight.TITLEBOOST
+				} else {
+					TFIDF = ids[i].WordTF * idf
+				}
+
 				maxTFIDF = math.Max(maxTFIDF, TFIDF)
 				vectorAllDoc[ids[i].Docid][index] = TFIDF
 				coord[ids[i].Docid] += 1 / float64(keyLen)
