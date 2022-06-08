@@ -323,6 +323,8 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 		return nil, nil, nil
 	}
 	var isInsert = false
+	insertNum := 100
+	insertWords := make([]string, insertNum)
 
 	for param, value := range params {
 
@@ -389,9 +391,17 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 			}
 
 			// todo 将value写入TriePath的文件中，可以设置一个n值，个数到达n再一起写入
-			_, err2 := writer.WriteString(fmt.Sprintf("%v%v", value, "\n"))
-			if err2 != nil {
-				return nil, nil, nil
+			insertNum--
+			if insertNum <= 0 {
+				for _, val := range insertWords {
+					_, err2 := writer.WriteString(val + "\n")
+					if err2 != nil {
+						return nil, nil, nil
+					}
+				}
+				insertNum = 100
+			} else {
+				insertWords[100-insertNum] = value
 			}
 			fieldType, ok := idx.Fields[param]
 			if ok {
