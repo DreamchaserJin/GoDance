@@ -1,7 +1,6 @@
 package related
 
 import (
-	"GoDance/engine"
 	"bufio"
 	"container/heap"
 	"io"
@@ -25,7 +24,7 @@ func Constructor(triePath string) Trie {
 	var trieTree = Trie{}
 
 	// todo 初始化trie树，将triePath文件下的搜索词插入到字典树中
-	fd, err := os.OpenFile(engine.TriePath, os.O_RDWR, 0644)
+	fd, err := os.OpenFile(triePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		panic(err)
 	}
@@ -86,7 +85,13 @@ func (t *Trie) Search(words string, BOOL bool) []string {
 		}
 
 		// 搜不满从trie根搜
-		relaters = append(relaters, t.searchWord("")...)
+		for k := range t.Children {
+			relaters = append(relaters, t.searchWord(string(k))...)
+			if len(relaters) >= 10 {
+				return relaters
+			}
+		}
+		// 总数据大于10就不会到这一步
 		return relaters
 	}
 	// 如果是实时搜索立马返回

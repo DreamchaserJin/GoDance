@@ -20,7 +20,6 @@ import (
 )
 
 var Engine *GoDanceEngine
-var TriePath = "./data/trieTree.tr"
 
 type GoDanceEngine struct {
 	idxManager *IndexManager
@@ -51,7 +50,7 @@ const (
 // @Return *GoDanceEngine 引擎对象
 func NewDefaultEngine(logger *utils.Log4FE) *GoDanceEngine {
 
-	this := &GoDanceEngine{Logger: logger, idxManager: newIndexManager(logger), trie: related.Constructor(TriePath)}
+	this := &GoDanceEngine{Logger: logger, idxManager: newIndexManager(logger), trie: related.Constructor(utils.TRIE_PATH)}
 	return this
 }
 
@@ -317,7 +316,7 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 
 	fmt.Println(params)
 	// 打开要写入的文件
-	trieFd, err := os.OpenFile(TriePath, os.O_CREATE|os.O_APPEND, 0644)
+	trieFd, err := os.OpenFile(utils.TRIE_PATH, os.O_CREATE|os.O_APPEND, 0644)
 	defer trieFd.Close()
 	writer := bufio.NewWriter(trieFd)
 	defer writer.Flush()
@@ -376,11 +375,10 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 			var query utils.SearchQuery
 			// 针对某个字段名的过滤
 			query.FieldName = param[1:]
-			if value == "" {
-				continue
+			if value != "" {
+				query.Value = value
+				notSearchQueries = append(notSearchQueries, query)
 			}
-			query.Value = value
-			notSearchQueries = append(searchQueries, query)
 
 		default:
 			segmenter := utils.GetGseSegmenter()
@@ -390,6 +388,7 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 			gde.trie.Insert(value)
 
 			// todo 将value写入TriePath的文件中，可以设置一个n值，个数到达n再一起写入
+			fmt.Println("写入 Trie 树")
 			_, err2 := writer.WriteString(value + "\n")
 			if err2 != nil {
 				return nil, nil, nil
@@ -485,21 +484,27 @@ func DocWeightSort(docMergeFilter []uint64, notDocQueryNodes []utils.DocIdNode, 
 				}
 			}
 			// query.Value 对应的idf
-			idf := math.Log(docNum / float64(len(ids)+1))
+			idf := math.Log(docNum/float64(len(ids)+1)) + 1
+			//fmt.Println("idf:", idf, query.Value)
 			var maxTFIDF float64
 			for i := range ids {
 				//ids[i].WordTF = ids[i].WordTF * idf
 				TFIDF := ids[i].WordTF * idf
 				maxTFIDF = math.Max(maxTFIDF, TFIDF)
 				vectorAllDoc[ids[i].Docid][index] = TFIDF
-				coord[ids[i].Docid] += float64(1 / keyLen)
+				coord[ids[i].Docid] += 1 / float64(keyLen)
+				//fmt.Println("coord:", coord[ids[i].Docid])
 			}
 			//wordDocTFIDF[query.Value] = ids
 			vectorKey[index] = maxTFIDF
 		}
 	}
+	//fmt.Println("vK:", vectorKey)
+	//fmt.Println("vad:", vectorAllDoc)
 	docVectorWeight := weight.DocVectorWeight(vectorKey, vectorAllDoc)
+	//fmt.Println("docvw : ", docVectorWeight)
 
+	//fmt.Println("coord:", coord)
 	// 协调因子乘向量权重后排序
 	var coordWeights utils.CoordWeightSort
 	for k, v := range docVectorWeight {
@@ -509,6 +514,7 @@ func DocWeightSort(docMergeFilter []uint64, notDocQueryNodes []utils.DocIdNode, 
 		coordWeights = append(coordWeights, cw)
 	}
 	sort.Sort(coordWeights)
+	fmt.Println(coordWeights)
 	// 排序后去掉权重只返回文档id
 	docWeightSort := make([]uint64, 0)
 	for _, v := range coordWeights {

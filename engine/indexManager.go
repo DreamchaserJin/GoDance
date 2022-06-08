@@ -93,7 +93,7 @@ func (idm *IndexManager) CreateIndex(indexName string, fields []segment.SimpleFi
 	idm.indexers[indexName] = gdindex.NewEmptyIndex(indexName, utils.IDX_ROOT_PATH, idm.Logger)
 	idm.IndexInfos[indexName] = IndexInfo{Name: indexName, Path: utils.IDX_ROOT_PATH}
 	for _, field := range fields {
-		fmt.Println("Add Fields")
+		// fmt.Println("Add Fields")
 		idm.indexers[indexName].AddField(field)
 	}
 
