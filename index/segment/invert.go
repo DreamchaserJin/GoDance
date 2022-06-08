@@ -98,10 +98,11 @@ func (ivt *invert) addDocument(docId uint64, contentStr string) error {
 	}
 	segset := make(map[string]struct{})
 	for _, val := range segResult {
-		s := segset[val]
-		if s
-		docIdNode := utils.DocIdNode{Docid: docId, WordTF: tf[val]}
-		ivt.memoryHashMap[val] = append(ivt.memoryHashMap[val], docIdNode)
+		if _, ok := segset[val]; !ok {
+			segset[val] = struct{}{}
+			docIdNode := utils.DocIdNode{Docid: docId, WordTF: tf[val]}
+			ivt.memoryHashMap[val] = append(ivt.memoryHashMap[val], docIdNode)
+		}
 	}
 	return nil
 }
