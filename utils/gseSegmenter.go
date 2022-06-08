@@ -22,23 +22,26 @@ func init() {
 	if err != nil {
 		panic(err.Error())
 	}
-	// 加载停用词
-	fd, err := os.OpenFile(STOP_WORD_FILE_PATH, os.O_RDONLY, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer fd.Close()
-	reader := bufio.NewReader(fd)
-	stopWords := make([]string, 16)
-	for {
-		word, _, e := reader.ReadLine()
-		if e == io.EOF {
-			break
-		}
-		if e != nil {
+	// 判断文件是否存在
+	if FileExist(STOP_WORD_FILE_PATH) {
+		// 加载停用词
+		fd, err := os.OpenFile(STOP_WORD_FILE_PATH, os.O_RDONLY, 0644)
+		if err != nil {
 			panic(err)
 		}
-		stopWords = append(stopWords, string(word))
+		defer fd.Close()
+		reader := bufio.NewReader(fd)
+		stopWords := make([]string, 16)
+		for {
+			word, _, e := reader.ReadLine()
+			if e == io.EOF {
+				break
+			}
+			if e != nil {
+				panic(err)
+			}
+			stopWords = append(stopWords, string(word))
+		}
 	}
 	err = gseSegmenter.segmenter.LoadStop()
 	if err != nil {

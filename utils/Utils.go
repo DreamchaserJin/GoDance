@@ -20,7 +20,7 @@ const GODANCEENGINE string = "GoDanceEngine"
 const MAX_SEGMENT_SIZE uint64 = 50000
 
 // 停用词文件
-const STOP_WORD_FILE_PATH = "./stopWords.txt"
+const STOP_WORD_FILE_PATH = "/home/iceberg/GolandProjects/GoDance/utils/stopWords.txt"
 
 type DocIdNode struct {
 	Docid  uint64
@@ -347,4 +347,10 @@ func DocIdNodeChangeUint64(docIdNode []DocIdNode) []uint64 {
 	}
 	return changeUint64
 
+}
+
+// FileExist 判断文件是否存在，如果存在返回true，否则返回false
+func FileExist(path string) bool {
+	_, err := os.Lstat(path)
+	return !os.IsNotExist(err)
 }
