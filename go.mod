@@ -13,13 +13,13 @@ require (
 	github.com/go-ego/gse v0.70.2
 	github.com/huichen/sego v0.0.0-20210824061530-c87651ea5c76
 	github.com/vcaesar/cedar v0.20.1 // indirect
-	github.com/yanyiwu/gojieba v1.1.2
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
 )
 
 require (
 	github.com/gin-gonic/gin v1.8.0
 	github.com/smallnest/rpcx v1.7.4
+	github.com/yanyiwu/gojieba v1.1.2
 )
 
 require (
