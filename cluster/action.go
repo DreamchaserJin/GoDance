@@ -42,7 +42,7 @@ func Election() {
 			break
 		} else {
 			//如果竞选失败，且这期间收到了高于自己term的心跳，此时退出选举
-			if !checkHeatBeat() {
+			if t, _ := checkHeatBeat(); t {
 				break
 			}
 			//如果竞选失败，检查一下自身节点是否在集群中，如果不在，则需要再次尝试获取当前Leader(避免初始情况下的无效自我选举)
@@ -67,16 +67,16 @@ func checkLatest() {
 }
 
 //检验心跳是否超时,返回是否超时
-func checkHeatBeat() bool {
+func checkHeatBeat() (isTimeOut bool, randomTimeOut int) {
 	config := configs.Config.Cluster
 	baseTime := config.HeartBeatMin
 	random := config.HeartBeatMax - config.HeartBeatMin
 	//根据配置设置随机超时时间
 	//检查主节点是否近期发送过探活请求
-	randomTimeOut := rand.Intn(random) + baseTime
+	randomTimeOut = rand.Intn(random) + baseTime
 	//如果超时没收到心跳
 	if time.Now().Sub(heartBeat).Milliseconds() > int64(randomTimeOut) {
-		return true
+		isTimeOut = true
 	}
-	return false
+	return
 }

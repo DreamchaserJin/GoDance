@@ -15,10 +15,10 @@ var (
 	logs []LogEntry
 	//日志id到数组索引下标的映射
 	id2index = map[uint64]int{}
-	//上一次提交的日志id，当提交日志id一样时，意味着state肯定是一致的
+	//最近一次提交的日志id，当提交日志id一样时，意味着state肯定是一致的
 	latestCommitted uint64
-	//最近一次增加的日志id
-	latestLog uint64
+	//上一次提交的日志Id
+	preCommitted uint64
 	//用于控制日志增加的逻辑
 	logMutex = sync.Mutex{}
 )
@@ -32,6 +32,8 @@ const (
 	NodeDelete
 	ShardAdd
 	ShardDelete
+	//主分片转移
+	//
 )
 
 var (
@@ -40,7 +42,6 @@ var (
 )
 
 type LogEntry struct {
-
 	//当前日志的id，这个是递增的
 	Id uint64
 	//日志任期
@@ -76,9 +77,10 @@ func DeleteNode(nodeId int64) bool {
 
 // AppendSelfLog 自身节点增加一条日志记录
 // 从节点自身调用
+//TODO 要检查前一个
 func AppendSelfLog(entry *LogEntry) {
 	logMutex.Lock()
-	//入股不存在才添加，保证幂等性
+	//如果不存在才添加，保证幂等性
 	if _, ok := id2index[entry.Id]; !ok {
 		appendLog(entry)
 	}
@@ -86,10 +88,11 @@ func AppendSelfLog(entry *LogEntry) {
 }
 
 // CommitLog 根据日志id提交日志到状态机中
-func CommitLog(id uint64) {
+func CommitLog(id uint64) (res bool) {
 	logMutex.Lock()
-	logs[id2index[id]].load2State()
+	res = logs[id2index[id]].load2State()
 	logMutex.Unlock()
+	return
 }
 
 // Diff 用于比较当前节点和传入参数之前的日志，并返回对应的差异
@@ -120,22 +123,24 @@ func (e *LogEntry) persistent() {
 }
 
 //todo load log to State
-func (e *LogEntry) load2State() {
+func (e *LogEntry) load2State() bool {
 	//避免重复提交
 	if e.Committed {
-		return
+		return true
 	}
 	switch e.Operation {
 	case NodeAdd:
 		n, ok := (e.Object).(node)
-		if ok {
+		if !ok {
 			log.Println("LogEntry Conversion failed")
+			return false
 		}
 		State.clusterState.addNode(&n)
 	case NodeDelete:
 		id, ok := (e.Object).(int64)
-		if ok {
+		if !ok {
 			log.Println("LogEntry Conversion failed")
+			return false
 		}
 		State.clusterState.deleteNode(id)
 		//todo 需要删除对应的client
@@ -146,7 +151,9 @@ func (e *LogEntry) load2State() {
 
 	}
 	e.Committed = true
+	preCommitted = latestCommitted
 	latestCommitted = e.Id
+	return true
 }
 
 //Send log replication RPCs to other nodes,
@@ -215,6 +222,5 @@ func appendClusterLog(op operation, object any) bool {
 func appendLog(entry *LogEntry) {
 	entry.persistent()
 	logs = append(logs, *entry)
-	latestLog = entry.Id
 	id2index[entry.Id] = len(logs) - 1
 }
