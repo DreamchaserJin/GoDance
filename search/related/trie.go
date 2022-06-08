@@ -1,6 +1,7 @@
 package related
 
 import (
+	"GoDance/utils"
 	"bufio"
 	"container/heap"
 	"io"
@@ -84,6 +85,17 @@ func (t *Trie) Search(words string, BOOL bool) []string {
 			return relaters
 		}
 
+		// 如果没满，搜分词
+		segmenter := utils.GetGseSegmenter()
+		terms := segmenter.CutSearch(words, false)
+
+		for i := 0; i < len(terms); i++ {
+			relaters = append(relaters, t.searchWord(terms[i])...)
+			if len(relaters) >= 10 {
+				return relaters[:10]
+			}
+		}
+
 		// 搜不满从trie根搜
 		for k := range t.Children {
 			relaters = append(relaters, t.searchWord(string(k))...)
@@ -91,7 +103,7 @@ func (t *Trie) Search(words string, BOOL bool) []string {
 				return relaters
 			}
 		}
-		// 总数据大于10就不会到这一步
+		// 总数据>=10就不会到这一步
 		return relaters
 	}
 	// 如果是实时搜索立马返回
