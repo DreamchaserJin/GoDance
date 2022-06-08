@@ -58,7 +58,7 @@ func (db *BTreeDB) SearchRange(btname string, keyMin, keyMax int64) (bool, []uin
 	if keyMin > keyMax {
 		return false, nil
 	}
-
+	// fmt.Println(db == nil)
 	vstr, err := db.dbHelper.GetRange(btname, keyMin, keyMax)
 	if err != nil {
 		return false, nil
@@ -79,10 +79,12 @@ func (db *BTreeDB) GetFirstKV(btname string) (int64, uint64, bool) {
 
 	key, vstr, err := db.dbHelper.GetFirstKV(btname)
 	if err != nil {
+		fmt.Printf("err: %v", err)
 		return -1, 0, false
 	}
 	u, e := strconv.ParseUint(vstr, 10, 64)
 	if e != nil {
+		fmt.Printf("err: %v", err)
 		return -1, 0, false
 	}
 	buf := bytes.NewBuffer(key)

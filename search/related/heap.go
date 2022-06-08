@@ -4,17 +4,17 @@ type RHeap []*Related
 
 //小顶堆，按照单词频次、单词长度依次存储
 type Related struct {
-	value     string
-	frequency uint64
+	Value     string
+	Frequency uint64
 }
 
 func (h RHeap) Len() int      { return len(h) }
 func (h RHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 func (h RHeap) Less(i, j int) bool {
-	if h[i].frequency < h[j].frequency {
+	if h[i].Frequency < h[j].Frequency {
 		return true
-	} else if h[i].frequency == h[j].frequency {
-		return len(h[i].value) > len(h[j].value)
+	} else if h[i].Frequency == h[j].Frequency {
+		return len(h[i].Value) > len(h[j].Value)
 	} else {
 		return false
 	}

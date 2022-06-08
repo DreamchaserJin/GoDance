@@ -13,9 +13,11 @@ import (
 
 // IDX_ROOT_PATH 默认索引存放位置
 const IDX_ROOT_PATH string = "./data/"
+const TRIE_PATH string = "./data/trieTree.tr"
 
 // FALCONENGINENAME base名称
 const GODANCEENGINE string = "GoDanceEngine"
+const MAX_SEGMENT_SIZE uint64 = 50000
 
 type DocIdNode struct {
 	Docid  uint64
@@ -43,6 +45,25 @@ func (a DocWeightSort) Less(i, j int) bool {
 	}
 	return CompareFloat64(a[i].WordTF, a[j].WordTF) < 0
 }
+
+// 协调因子
+type CoordWeight struct {
+	DocId  uint64
+	Weight float64
+}
+type CoordWeightSort []CoordWeight
+
+func (cw CoordWeightSort) Len() int { return len(cw) }
+func (cw CoordWeightSort) Less(i, j int) bool {
+	if cw[i].Weight > cw[j].Weight {
+		return true
+	} else if cw[i].Weight == cw[j].Weight {
+		return cw[i].DocId < cw[j].DocId
+	} else {
+		return false
+	}
+}
+func (cw CoordWeightSort) Swap(i, j int) { cw[i], cw[j] = cw[j], cw[i] }
 
 //
 //  CompareFloat64
@@ -120,430 +141,29 @@ type SearchFilters struct {
 	RangeStr  []string `json:"_rangestr"`
 }
 
-//SearchSort description : 排序
-type SearchSort struct {
-	FieldName string `json:"_sortfield"`
-	SortType  string `json:"_sorttype"`
+// 查询返回的数据结构项
+
+// DefaultResult
+// @Description: 返回给Web层的 Json
+type DefaultResult struct {
+	TotalCount int64               `json:"totalCount"`
+	From       int64               `json:"from"`
+	To         int64               `json:"to"`
+	Status     string              `json:"status"`
+	CostTime   string              `json:"costTime"`
+	Results    []map[string]string `json:"results"`
 }
 
-type SearchConfig struct {
-	ShowFields []string `json:"_showfields"`
-	PageSize   int      `json:"_pagesize"`
-	PageNumber int      `json:"_pagenum"`
-}
-
-//统计类型
-const (
-	OP_COUNT uint64 = 1
-	OP_SUM   uint64 = 2
-	OP_AVG   uint64 = 3
-	OP_MAX   uint64 = 4
-	OP_MIN   uint64 = 5
-)
-
-// FSStatistics function description : 汇总统计接口数据结构
-type FSStatistics struct {
-	Gather   string `json:"_gather"`    //汇总字段
-	Op       uint64 `json:"_op"`        //统计字段的操作
-	Field    string `json:"_field"`     //统计字段
-	Type     uint64 `json:"_type"`      //统计后操作的类型
-	Start    int64  `json:"_start"`     //统计后操作的起始范围
-	End      int64  `json:"_end"`       //统计后操作的结束范围
-	StartStr string `json:"_start_str"` //统计后操作的起始范围
-	EndStr   string `json:"_end_str"`   //统计后操作的结束范围
-}
-
-/*************************************************************************
-查询返回的数据结构项
-************************************************************************/
-// FEStatisticsResultMap function description : 统计结果结构
-type FSStatisticsResultMap struct {
-	Gather string           `json:"_gather"`
-	Info   map[string]int64 `json:"_info"`
-}
-
-// FEStatisticsResult function description : 统计结果结构
-type FSStatisticsResult struct {
-	ResultCount    uint64                  `json:"_resultcount"`
-	StatisticsInfo []FSStatisticsResultMap `json:"_statistics"`
-}
-
-// FEResultNode function description : 返回结果的单节点信息
-type FSResultNode struct {
-	Info map[string]string `json:"_information"`
-}
-
-// FSResult function description : 返回总结构
-type FSResult struct {
-	Statistics FSStatisticsResult `json:"_stat"`   //统计信息
-	ResultInfo []FSResultNode     `json:"_result"` //详情信息
-}
-
-// FEResultAutomatic struct description : 营销自动化返回接口
-type FEResultAutomatic struct {
-	Count    uint64   `json:"_count"`
-	Contacts []string `json:"_contactids"`
-}
-
-// FEResultAutomatic struct description : 营销自动化返回接口
-type FEResultAutomaticSingle struct {
-	ContactID  string `json:"_contactid"`
-	HasContact int    `json:"_hascontact"`
-	Condition  int    `json:"_condition"`
-}
-
-type FSLoadStruct struct {
-	Split     string   `json:"_split"`
-	Fields    []string `json:"_fields"`
-	Filename  string   `json:"_filename"`
-	SyncCount int      `json:"_synccount"`
-	IsMerge   bool     `json:"_ismerge"`
-}
-
-type Engine interface {
-	Search(method string, parms map[string]string, body []byte) (string, error)
-	CreateIndex(method string, parms map[string]string, body []byte) error
-	UpdateDocument(method string, parms map[string]string, body []byte) (string, error)
-	LoadData(method string, parms map[string]string, body []byte) (string, error)
-	PullDetail(method string, parms map[string]string, body []byte) ([]string, uint64)
-	JoinNode(method string, parms map[string]string, body []byte) (string, error)
-	Heart(method string, parms map[string]string, body []byte) (map[string]string, error)
-	InitEngine() error
-}
-
-/*****************************************************************************
-*  function name : Merge
-*  params :
-*  return :
-*
-*  description : 求并集
-*
-******************************************************************************/
-
-func Merge(a []DocIdNode, b []DocIdNode) ([]DocIdNode, bool) {
-	lena := len(a)
-	lenb := len(b)
-	lenc := 0
-	c := make([]DocIdNode, lena+lenb)
-	ia := 0
-	ib := 0
-	//fmt.Printf("Lena : %v ======== Lenb : %v \n",lena,lenb)
-	if lena == 0 && lenb == 0 {
-		return nil, false
-	}
-
-	for ia < lena && ib < lenb {
-
-		if a[ia] == b[ib] {
-			//c = append(c, a[ia])
-			c[lenc] = a[ia]
-			lenc++
-			ia++
-			ib++
-			continue
-		}
-
-		if a[ia].Docid < b[ib].Docid {
-			//	fmt.Printf("ia : %v ======== ib : %v \n",ia,ib)
-			//c = append(c, a[ia])
-			c[lenc] = a[ia]
-			lenc++
-			ia++
-		} else {
-			//c = append(c, b[ib])
-			c[lenc] = b[ib]
-			lenc++
-			ib++
-		}
-	}
-
-	if ia < lena {
-		for ; ia < lena; ia++ {
-			//c = append(c, a[ia])
-			c[lenc] = a[ia]
-			lenc++
-		}
-
-	} else {
-		for ; ib < lenb; ib++ {
-			//c = append(c, b[ib])
-			c[lenc] = b[ib]
-			lenc++
-		}
-	}
-
-	return c[:lenc], true
-
-}
-
-func MergeIds(a []uint64, b []uint64) []uint64 {
-	lena := len(a)
-	lenb := len(b)
-	if lena == 0 && lenb == 0 {
-		return make([]uint64, 0)
-	}
-	lenc := 0
-	c := make([]uint64, lena+lenb)
-	ia := 0
-	ib := 0
-	//fmt.Printf("Lena : %v ======== Lenb : %v \n",lena,lenb)
-	if lena == 0 && lenb == 0 {
-		return nil
-	}
-
-	for ia < lena && ib < lenb {
-
-		if a[ia] == b[ib] {
-			//c = append(c, a[ia])
-			c[lenc] = a[ia]
-			lenc++
-			ia++
-			ib++
-			continue
-		}
-
-		if a[ia] < b[ib] {
-			//	fmt.Printf("ia : %v ======== ib : %v \n",ia,ib)
-			//c = append(c, a[ia])
-			c[lenc] = a[ia]
-			lenc++
-			ia++
-		} else {
-			//c = append(c, b[ib])
-			c[lenc] = b[ib]
-			lenc++
-			ib++
-		}
-	}
-
-	if ia < lena {
-		for ; ia < lena; ia++ {
-			//c = append(c, a[ia])
-			c[lenc] = a[ia]
-			lenc++
-		}
-
-	} else {
-		for ; ib < lenb; ib++ {
-			//c = append(c, b[ib])
-			c[lenc] = b[ib]
-			lenc++
-		}
-	}
-
-	return c[:lenc]
-}
-
-func ComputeWeight(res []DocIdNode, df int, maxdoc uint32) []DocIdNode {
-	idf := math.Log10(float64(maxdoc) / float64(df))
-	for ia := 0; ia < len(res); ia++ {
-		res[ia].WordTF = float64(res[ia].WordTF) * idf
-	}
-	return res
-
-}
-
-func ComputeTfIdf(res []DocIdNode, a []DocIdNode, df int, maxdoc uint32) []DocIdNode {
-
-	for ia := 0; ia < len(a); ia++ {
-		wordTF := (float64(a[ia].WordTF) / 10000 * math.Log10(float64(maxdoc)/float64(df))) * 1000
-		docid := a[ia].Docid
-		res = append(res, DocIdNode{Docid: docid, WordTF: wordTF})
-	}
-	return res
-}
-
-func InteractionWithDf(a []DocIdNode, b []DocIdNode, df int, maxdoc uint32) ([]DocIdNode, bool) {
-
-	if a == nil || b == nil {
-		return a, false
-	}
-
-	lena := len(a)
-	lenb := len(b)
-
-	lenc := 0
-	ia := 0
-	ib := 0
-	idf := math.Log10(float64(maxdoc) / float64(df))
-	for ia < lena && ib < lenb {
-
-		if a[ia].Docid == b[ib].Docid {
-			a[lenc] = a[ia]
-
-			a[lenc].WordTF += a[ia].WordTF * idf
-			lenc++
-			ia++
-			ib++
-			continue
-			//c = append(c, a[ia])
-		}
-
-		if a[ia].Docid < b[ib].Docid {
-			ia++
-		} else {
-			ib++
-		}
-	}
-
-	return a[:lenc], true
-}
-
-func InteractionWithStart(a []DocIdNode, b []DocIdNode, start int) ([]DocIdNode, bool) {
-
-	if a == nil || b == nil {
-		return a, false
-	}
-
-	lena := len(a)
-	lenb := len(b)
-	lenc := start
-	ia := start
-	ib := 0
-
-	//fmt.Printf("a:%v,b:%v,c:%v\n",lena,lenb,lenc)
-	for ia < lena && ib < lenb {
-
-		if a[ia].Docid == b[ib].Docid {
-			a[lenc] = a[ia]
-			lenc++
-			ia++
-			ib++
-			continue
-			//c = append(c, a[ia])
-		}
-
-		if a[ia].Docid < b[ib].Docid {
-			ia++
-		} else {
-			ib++
-		}
-	}
-
-	//fmt.Printf("a:%v,b:%v,c:%v\n",lena,lenb,lenc)
-	return a[:lenc], true
-
-}
-
-/*****************************************************************************
-*  function name : Interaction
-*  params :
-*  return :
-*
-*  description : 求交集
-*
-******************************************************************************/
-
-func Interaction(a []DocIdNode, b []DocIdNode) ([]DocIdNode, bool) {
-
-	if a == nil || b == nil {
-		return a, false
-	}
-
-	lena := len(a)
-	lenb := len(b)
-	var c []DocIdNode
-	lenc := 0
-	if lena < lenb {
-		c = make([]DocIdNode, lena)
-	} else {
-		c = make([]DocIdNode, lenb)
-	}
-	//fmt.Printf("a:%v,b:%v,c:%v\n", lena, lenb, lenc)
-	ia := 0
-	ib := 0
-	for ia < lena && ib < lenb {
-
-		if a[ia].Docid == b[ib].Docid {
-			c[lenc] = a[ia]
-			lenc++
-			ia++
-			ib++
-			continue
-			//c = append(c, a[ia])
-		}
-
-		if a[ia].Docid < b[ib].Docid {
-			ia++
-		} else {
-			ib++
-		}
-	}
-
-	if len(c) == 0 {
-		return nil, false
-	} else {
-		return c[:lenc], true
-	}
-
-}
-
-func InteractionIds(a []uint32, b []uint32) ([]uint32, bool) {
-
-	if a == nil || b == nil {
-		return a, false
-	}
-
-	lena := len(a)
-	lenb := len(b)
-	var c []uint32
-	lenc := 0
-	if lena <= lenb {
-		c = make([]uint32, lena)
-	} else {
-		c = make([]uint32, lenb)
-	}
-
-	ia := 0
-	ib := 0
-	for ia < lena && ib < lenb {
-		if a[ia] == b[ib] {
-			c[lenc] = a[ia]
-			lenc++
-			ia++
-			ib++
-			continue
-		}
-
-		if a[ia] < b[ib] {
-			ia++
-		} else {
-			ib++
-		}
-	}
-
-	if len(c) == 0 {
-		return nil, false
-	} else {
-		return c[:lenc], true
-	}
-
-}
-
-func BinSearch(docids []DocIdNode, item DocIdNode) int {
-
-	low := 0
-	high := len(docids) - 1
-	if low > high {
-		return -1
-	}
-
-	mid := (low + high) / 2
-	midValue := docids[mid]
-	if docids[mid].Docid > item.Docid {
-		return BinSearch(docids[low:mid], item)
-	}
-
-	if docids[mid].Docid < item.Docid {
-		return BinSearch(docids[mid+1:high+1], item)
-	}
-
-	if midValue == item {
-		return mid
-	}
-	return -1
-
-}
+//type Engine interface {
+//	Search(method string, parms map[string]string, body []byte) (string, error)
+//	CreateIndex(method string, parms map[string]string, body []byte) error
+//	UpdateDocument(method string, parms map[string]string, body []byte) (string, error)
+//	LoadData(method string, parms map[string]string, body []byte) (string, error)
+//	PullDetail(method string, parms map[string]string, body []byte) ([]string, uint64)
+//	JoinNode(method string, parms map[string]string, body []byte) (string, error)
+//	Heart(method string, parms map[string]string, body []byte) (map[string]string, error)
+//	InitEngine() error
+//}
 
 func Exist(filename string) bool {
 	_, err := os.Stat(filename)
@@ -632,8 +252,13 @@ func IsDateTime(datetime string) (int64, error) {
 	var timestamp time.Time
 	var err error
 
-	if len(datetime) > 10 {
+	if len(datetime) > 16 {
 		timestamp, err = time.ParseInLocation("2006-01-02 15:04:05", datetime, time.Local)
+		if err != nil {
+			return -1, err
+		}
+	} else if len(datetime) > 10 {
+		timestamp, err = time.ParseInLocation("2006-01-02 15:04", datetime, time.Local)
 		if err != nil {
 			return -1, err
 		}
@@ -654,7 +279,7 @@ func FormatDateTime(timestamp int64) (string, bool) {
 		return "", false
 	}
 	tm := time.Unix(timestamp, 0)
-	return tm.Format("2006-01-02 15:04:05"), true
+	return tm.Format("2006-01-02"), true
 
 }
 

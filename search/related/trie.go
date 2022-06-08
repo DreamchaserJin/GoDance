@@ -1,15 +1,17 @@
 package related
 
 import (
-	"GoDance/utils"
+	"bufio"
 	"container/heap"
+	"io"
+	"os"
 )
 
 type Trie struct {
 	// rune代表一个中文字符
-	children  map[rune]*Trie
-	isWord    bool
-	frequency uint64
+	Children  map[rune]*Trie
+	IsWord    bool
+	Frequency uint64
 }
 
 //
@@ -17,8 +19,30 @@ type Trie struct {
 //  @Description: 添加接口，创建字典树
 //  @return Trie
 //
-func Constructor() Trie {
-	return Trie{}
+func Constructor(triePath string) Trie {
+
+	var trieTree = Trie{}
+
+	// todo 初始化trie树，将triePath文件下的搜索词插入到字典树中
+	fd, err := os.OpenFile(triePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer fd.Close()
+	reader := bufio.NewReader(fd)
+	for {
+		word, _, e := reader.ReadLine()
+		if e == io.EOF {
+			break
+		}
+		if e != nil {
+			panic(err)
+		}
+		// todo 插入操作
+		trieTree.Insert(string(word))
+	}
+
+	return trieTree
 }
 
 //
@@ -30,16 +54,16 @@ func Constructor() Trie {
 func (t *Trie) Insert(words string) {
 	node := t
 	for _, ch := range words {
-		if node.children == nil {
-			node.children = make(map[rune]*Trie)
+		if node.Children == nil {
+			node.Children = make(map[rune]*Trie)
 		}
-		if node.children[ch] == nil {
-			node.children[ch] = &Trie{}
+		if node.Children[ch] == nil {
+			node.Children[ch] = &Trie{}
 		}
-		node = node.children[ch]
+		node = node.Children[ch]
 	}
-	node.frequency++
-	node.isWord = true
+	node.Frequency++
+	node.IsWord = true
 }
 
 //
@@ -53,34 +77,22 @@ func (t *Trie) Insert(words string) {
 func (t *Trie) Search(words string, BOOL bool) []string {
 	// 如果BOOL为false则是相关搜索
 	if BOOL == false {
-		isOne := true
 		relaters := make([]string, 0)
-		// 分词
-		segmenter := utils.GetGseSegmenter()
-		terms := segmenter.CutSearch(words, false)
+		// 先搜索相关词
+		relaters = t.searchWord(words)
+		if len(relaters) == 10 {
+			return relaters
+		}
 
-		for i := 0; i < len(terms); {
-			// 如果是第一次就搜索原搜索词words
-			if isOne == true {
-				relaters = t.searchWord(words)
-				if len(relaters) < 10 {
-					isOne = false
-				} else {
-					return relaters
-				}
-			} else {
-				// 不是第一次就搜索分词,然后添加到末尾
-				relaters = append(relaters, t.searchWord(terms[i])...)
-				if len(relaters) >= 10 {
-					return relaters[:10]
-				}
-				i++
+		// 搜不满从trie根搜
+		for k := range t.Children {
+			relaters = append(relaters, t.searchWord(string(k))...)
+			if len(relaters) >= 10 {
+				return relaters
 			}
 		}
-		// 到这里说明肯定不足10个，直接补全words算了
-		for len(relaters) < 10 {
-			relaters = append(relaters, words)
-		}
+		// 总数据大于10就不会到这一步
+		return relaters
 	}
 	// 如果是实时搜索立马返回
 	return t.searchWord(words)
@@ -88,7 +100,7 @@ func (t *Trie) Search(words string, BOOL bool) []string {
 
 //
 //  searchWord
-//  @Description: 查询以words开头的单词
+//  @Description: 查询以words开头的单词,返回结果 <= 10个
 //  @receiver t
 //  @param words
 //  @return []string
@@ -108,10 +120,10 @@ func (t *Trie) searchWord(words string) []string {
 	q.Add(node, []rune(words)[:n-1], []rune(words)[n-1])
 	for q.Size > 0 {
 		no, ru := q.Remove()
-		if no.isWord == true {
+		if no.IsWord == true {
 			temp := &Related{
-				frequency: no.frequency,
-				value:     string(ru),
+				Frequency: no.Frequency,
+				Value:     string(ru),
 			}
 			heap.Push(h, temp)
 			count++
@@ -122,7 +134,7 @@ func (t *Trie) searchWord(words string) []string {
 		if count >= 50 {
 			break
 		}
-		for k, v := range no.children {
+		for k, v := range no.Children {
 			q.Add(v, ru, k)
 		}
 	}
@@ -131,7 +143,10 @@ func (t *Trie) searchWord(words string) []string {
 	for h.Len() > 0 {
 		r := heap.Pop(h).(*Related)
 		// 因为是小顶堆，堆顶最小，所以逆序存储
-		relaters[h.Len()] = r.value
+		relaters[h.Len()] = r.Value
+	}
+	if len(relaters) > 10 {
+		return relaters[:10]
 	}
 
 	return relaters
@@ -147,10 +162,10 @@ func (t *Trie) searchWord(words string) []string {
 func (t *Trie) searchPrefix(prefix string) *Trie {
 	node := t
 	for _, ch := range prefix {
-		if node.children[ch] == nil {
+		if node.Children[ch] == nil {
 			return nil
 		}
-		node = node.children[ch]
+		node = node.Children[ch]
 	}
 	return node
 }

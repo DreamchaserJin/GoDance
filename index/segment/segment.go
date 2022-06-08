@@ -172,7 +172,7 @@ func (seg *Segment) AddDocument(docId uint64, content map[string]string) error {
 }
 
 // GetDocument
-// @Description 根据 docId 获取文档内容（未完成）
+// @Description 根据 docId 获取文档内容
 // @Param docId 文档ID
 // @Return map[string]string 返回的内容
 // @Return bool 是否找到文档

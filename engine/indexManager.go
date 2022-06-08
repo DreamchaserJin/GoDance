@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -45,9 +46,10 @@ func newIndexManager(logger *utils.Log4FE) *IndexManager {
 		if err != nil {
 			return idm
 		}
-
+		idm.Logger.Info("[INFO]  New Index Manager ")
 		for _, idxInfo := range idm.IndexInfos {
 			idm.indexers[idxInfo.Name] = gdindex.NewIndexFromLocalFile(idxInfo.Name, idxInfo.Path, logger)
+			log.Printf("idx %v loaded", idxInfo.Name)
 		}
 	}
 
@@ -91,8 +93,11 @@ func (idm *IndexManager) CreateIndex(indexName string, fields []segment.SimpleFi
 	idm.indexers[indexName] = gdindex.NewEmptyIndex(indexName, utils.IDX_ROOT_PATH, idm.Logger)
 	idm.IndexInfos[indexName] = IndexInfo{Name: indexName, Path: utils.IDX_ROOT_PATH}
 	for _, field := range fields {
+		// fmt.Println("Add Fields")
 		idm.indexers[indexName].AddField(field)
 	}
+
+	fmt.Println("Create Index Over")
 
 	return idm.storeIndexManager()
 }
@@ -161,7 +166,7 @@ func (idm *IndexManager) updateDocument(indexName string, document map[string]st
 }
 
 func (idm *IndexManager) storeIndexManager() error {
-	metaFileName := fmt.Sprintf("%v%v.mgt.meta", utils.IDX_ROOT_PATH, utils.GODANCEENGINE)
+	metaFileName := fmt.Sprintf("%v%v.idm.meta", utils.IDX_ROOT_PATH, utils.GODANCEENGINE)
 	if err := utils.WriteToJson(idm, metaFileName); err != nil {
 		return err
 	}

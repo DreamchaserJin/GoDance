@@ -213,7 +213,7 @@ func (bh *BoltHelper) GetFirstKV(btName string) ([]byte, string, error) {
 
 		b := tx.Bucket([]byte(btName)).Cursor()
 		key, value = b.First()
-		fmt.Printf("First Key : %v  Value : %v\n", string(key), string(value))
+		// fmt.Printf("First Key : %v  Value : %v\n", string(key), string(value))
 		return nil
 	})
 
@@ -287,7 +287,7 @@ func (bh *BoltHelper) DisplayTable(tablename string) error {
 		b.ForEach(func(k, v []byte) error {
 			buf := bytes.NewBuffer(k)
 			binary.Read(buf, binary.BigEndian, &kv)
-			fmt.Printf("key=%v, value=%s\n", kv, v)
+			// fmt.Printf("key=%v, value=%s\n", kv, v)
 			return nil
 		})
 		return nil

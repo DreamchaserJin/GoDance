@@ -42,5 +42,4 @@ func main() {
 	fmt.Println(addr)
 
 	router.Run(addr)
-
 }

@@ -31,6 +31,7 @@ func LoadCsvFile(filename string, row int) *CsvTable {
 	if reader == nil {
 		panic("reader is nil")
 	}
+	reader.LazyQuotes = true
 	records, err := reader.ReadAll()
 	if err != nil {
 		panic(err)

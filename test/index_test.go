@@ -81,9 +81,9 @@ func TestAddDocument(t *testing.T) {
 	index := gdindex.NewIndexFromLocalFile("gk", utils.IDX_ROOT_PATH, logger)
 
 	content := make(map[string]string, 0)
-	csvTable := utils.LoadCsvFile("/home/iceberg/桌面/高考作文.csv", 1)
+	csvTable := utils.LoadCsvFile("/home/iceberg/桌面/高考作文.csv", 22)
 	for i, val := range csvTable.Records {
-		content["id"] = strconv.Itoa(i)
+		content["id"] = strconv.Itoa(i + 20)
 		content["year"] = val.GetString("year")
 		content["region"] = val.GetString("region")
 		content["title"] = val.GetString("title")
@@ -130,7 +130,7 @@ func TestSearch(t *testing.T) {
 
 	q1 := utils.SearchQuery{
 		FieldName: "title",
-		Value:     "伟大",
+		Value:     "战斗",
 	}
 
 	//q2 := utils.SearchQuery{

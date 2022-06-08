@@ -5,10 +5,15 @@ import (
 	"GoDance/index/segment"
 	"GoDance/search/boolea"
 	"GoDance/search/related"
+	"GoDance/search/weight"
 	"GoDance/utils"
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -26,17 +31,6 @@ type GoDanceEngine struct {
 	trie       related.Trie
 }
 
-// DefaultResult
-// @Description: 返回给Web层的 Json
-type DefaultResult struct {
-	TotalCount int64               `json:"totalCount"`
-	From       int64               `json:"from"`
-	To         int64               `json:"to"`
-	Status     string              `json:"status"`
-	CostTime   string              `json:"costTime"`
-	Results    []map[string]string `json:"results"`
-}
-
 // 一些返回的错误常量
 const (
 	MethodError    string = "提交方式错误,请查看提交方式是否正确"
@@ -45,9 +39,9 @@ const (
 	NoPrimaryKey   string = "没有主键"
 	QueryError     string = "查询条件有问题，请检查查询条件"
 	IndexNotFound  string = "未找到对应的索引"
-	OK             string = `{"status":"OK"}`
-	NotFound       string = `{"status":"NotFound"}`
-	Fail           string = `{"status":"Fail"}`
+	OK             string = `"status":"OK"`
+	NotFound       string = `"status":"NotFound"`
+	Fail           string = `"status":"Fail"`
 )
 
 // NewDefaultEngine
@@ -55,7 +49,8 @@ const (
 // @Param logger 日志
 // @Return *GoDanceEngine 引擎对象
 func NewDefaultEngine(logger *utils.Log4FE) *GoDanceEngine {
-	this := &GoDanceEngine{Logger: logger, idxManager: newIndexManager(logger), trie: related.Constructor()}
+
+	this := &GoDanceEngine{Logger: logger, idxManager: newIndexManager(logger), trie: related.Constructor(utils.TRIE_PATH)}
 	return this
 }
 
@@ -64,15 +59,11 @@ func NewDefaultEngine(logger *utils.Log4FE) *GoDanceEngine {
 // @Param params 请求参数
 // @Param body  请求体 Json格式
 // @Return error 任何错误
-func (gde *GoDanceEngine) CreateIndex(params map[string]string, body []byte) error {
-
-	indexName, hasindex := params["index"]
-	if !hasindex {
-		return errors.New(ParamsError)
-	}
+func (gde *GoDanceEngine) CreateIndex(indexName string, body []byte) error {
 
 	var idx IndexStruct
 	err := json.Unmarshal(body, &idx)
+	fmt.Println(idx)
 	if err != nil {
 		gde.Logger.Error("[ERROR]  %v : %v ", JsonParseError, err)
 		return errors.New(JsonParseError)
@@ -105,51 +96,47 @@ func (gde *GoDanceEngine) DeleteField(indexName string, fieldName string) error 
 	return gde.idxManager.DeleteField(indexName, fieldName)
 }
 
-// DocumentOptions
-// @Description 对文档的增删改
-// @Param method 请求方式 PUT,POST,DELETE
-// @Param params 请求参数
-// @Param body  请求体
-// @Return string Json格式的字符串，表示成功或者失败
-// @Return error 任何错误
-func (gde *GoDanceEngine) DocumentOptions(method string, params map[string]string, body []byte) (string, error) {
-
+func (gde *GoDanceEngine) AddDocument(params map[string]string, body []byte) (string, error) {
 	indexName, hasIndex := params["index"]
-	if !hasIndex {
+	if !hasIndex || indexName == "" {
+		return Fail, errors.New(ParamsError)
+	}
+	document := make(map[string]string)
+	err := json.Unmarshal(body, &document)
+	if err != nil {
+		gde.Logger.Error("[ERROR] Parse JSON Fail : %v ", err)
+		return "", errors.New(JsonParseError)
+	}
+
+	return gde.idxManager.addDocument(indexName, document)
+}
+
+func (gde *GoDanceEngine) DeleteDocument(params map[string]string) (string, error) {
+	indexName, hasIndex := params["index"]
+	if !hasIndex || indexName == "" {
 		return Fail, errors.New(ParamsError)
 	}
 
-	switch method {
-	case "POST":
-		document := make(map[string]string)
-		err := json.Unmarshal(body, &document)
-		if err != nil {
-			gde.Logger.Error("[ERROR] Parse JSON Fail : %v ", err)
-			return "", errors.New(JsonParseError)
-		}
+	pk, haspk := params["_pk"]
+	if !haspk {
+		return Fail, errors.New(NoPrimaryKey)
+	}
 
-		return gde.idxManager.addDocument(indexName, document)
-	case "DELETE":
-		pk, haspk := params["_pk"]
-		if !haspk {
-			return Fail, errors.New(NoPrimaryKey)
-		}
-
-		return gde.idxManager.deleteDocument(indexName, pk)
-	case "PUT":
-
-		document := make(map[string]string)
-		err := json.Unmarshal(body, &document)
-		if err != nil {
-			gde.Logger.Error("[ERROR] Parse JSON Fail : %v ", err)
-			return Fail, errors.New(JsonParseError)
-		}
-
-		return gde.idxManager.updateDocument(indexName, document)
-
-	default:
+	return gde.idxManager.deleteDocument(indexName, pk)
+}
+func (gde *GoDanceEngine) UpdateDocument(params map[string]string, body []byte) (string, error) {
+	indexName, hasIndex := params["index"]
+	if !hasIndex || indexName == "" {
 		return Fail, errors.New(ParamsError)
 	}
+	document := make(map[string]string)
+	err := json.Unmarshal(body, &document)
+	if err != nil {
+		gde.Logger.Error("[ERROR] Parse JSON Fail : %v ", err)
+		return Fail, errors.New(JsonParseError)
+	}
+
+	return gde.idxManager.updateDocument(indexName, document)
 }
 
 // RealTimeSearch
@@ -157,15 +144,10 @@ func (gde *GoDanceEngine) DocumentOptions(method string, params map[string]strin
 // @Param key  关键词
 // @Return string  json格式的返回结果
 // @Return error 任何错误
-func (gde *GoDanceEngine) RealTimeSearch(key string) (string, error) {
+func (gde *GoDanceEngine) RealTimeSearch(key string) []string {
 
 	search := gde.trie.Search(key, true)
-	results, err := json.Marshal(search)
-	if err == nil {
-		return string(results), err
-	}
-
-	return "", nil
+	return search
 }
 
 // RelatedSearch
@@ -173,15 +155,10 @@ func (gde *GoDanceEngine) RealTimeSearch(key string) (string, error) {
 // @Param key  关键词
 // @Return string  json格式的返回结果
 // @Return error 任何错误
-func (gde *GoDanceEngine) RelatedSearch(key string) (string, error) {
+func (gde *GoDanceEngine) RelatedSearch(key string) []string {
 
 	search := gde.trie.Search(key, false)
-	results, err := json.Marshal(search)
-	if err == nil {
-		return string(results), err
-	}
-
-	return "", nil
+	return search
 }
 
 // Search
@@ -189,21 +166,23 @@ func (gde *GoDanceEngine) RelatedSearch(key string) (string, error) {
 // @Param params 请求参数
 // @Return string 搜索相关的Json字符串
 // @Return error
-func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
+func (gde *GoDanceEngine) Search(params map[string]string) (utils.DefaultResult, error) {
 
 	startTime := time.Now()
 	indexName, hasIndex := params["index"]
 	pageSize, hasPageSize := params["pageSize"]
 	curPage, hasCurPage := params["curPage"]
 
+	var resultSet utils.DefaultResult
+
 	if !hasIndex || !hasPageSize || !hasCurPage {
-		return Fail, errors.New(ParamsError)
+		return resultSet, errors.New(ParamsError)
 	}
 
 	//获取索引
 	idx := gde.idxManager.GetIndex(indexName)
 	if idx == nil {
-		return NotFound, errors.New(IndexNotFound)
+		return resultSet, errors.New(IndexNotFound)
 	}
 
 	// 建立过滤条件和搜索条件
@@ -219,6 +198,8 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 			docQueryNodes = boolea.MergeDocIdNode(docQueryNodes, ids)
 		}
 	}
+
+	fmt.Printf("%v\n", docQueryNodes)
 
 	// todo 对每个 Ids 求交集
 	for _, filter := range searchFilters {
@@ -240,27 +221,33 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	// 使用 bool模型汇总
 	docMergeFilter := boolea.DocMergeFilter(docQueryNodes, docFilterIds, notDocQueryNodes)
 
-	// todo 计算相关性 idf
+	fmt.Printf("merge : %v\n", docMergeFilter)
 
-	// todo 需要docMergeFilter对应文章的标题、摘要、内容的单词权重map[string]float64
+	// todo 对docMergeFilter的所有文档进行权重排序
+	docWeightSort := DocWeightSort(docMergeFilter, notDocQueryNodes, searchQueries, idx)
 
-	lens := int64(len(docMergeFilter))
+	fmt.Printf("weightsort : %v\n", docWeightSort)
+
+	lens := int64(len(docWeightSort))
+
+	fmt.Printf("lens : %v\n", lens)
+
 	if lens == 0 {
-		return NotFound, nil
+		return resultSet, nil
 	}
 
 	//计算起始和终止位置
 	start, end, err := gde.calcStartEnd(pageSize, curPage, lens)
+
 	if err != nil {
-		return NotFound, nil
+		return resultSet, nil
 	}
 
-	var resultSet DefaultResult
-
 	resultSet.Results = make([]map[string]string, 0)
-	for _, docId := range docMergeFilter[start:end] {
+	for _, docId := range docWeightSort[start:end] {
 		doc, ok := idx.GetDocument(docId)
 		doc["id"] = fmt.Sprintf("%v", docId)
+		fmt.Println(doc)
 		if ok {
 			resultSet.Results = append(resultSet.Results, doc)
 		}
@@ -273,12 +260,13 @@ func (gde *GoDanceEngine) Search(params map[string]string) (string, error) {
 	endTime := time.Now()
 	resultSet.CostTime = fmt.Sprintf("%v", endTime.Sub(startTime))
 
-	r, err := json.Marshal(resultSet)
+	// fmt.Println(resultSet.TotalCount)
+
 	if err != nil {
-		return NotFound, err
+		return resultSet, err
 	}
 
-	return string(r), nil
+	return resultSet, nil
 }
 
 // calcStartEnd
@@ -300,8 +288,12 @@ func (gde *GoDanceEngine) calcStartEnd(ps, cp string, docSize int64) (int64, int
 		curPage = 1
 	}
 
-	start := curPage * (pageSize - 1)
-	end := curPage * pageSize
+	// fmt.Println(curPage, pageSize)
+
+	start := pageSize * (curPage - 1)
+	end := pageSize * curPage
+
+	// fmt.Println(start, end)
 
 	if start >= docSize {
 		return 0, 0, fmt.Errorf("out page")
@@ -321,10 +313,21 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 	searchFilters := make([]utils.SearchFilters, 0)
 	searchQueries := make([]utils.SearchQuery, 0)
 	notSearchQueries := make([]utils.SearchQuery, 0)
+
+	fmt.Println(params)
+	// 打开要写入的文件
+	trieFd, err := os.OpenFile(utils.TRIE_PATH, os.O_CREATE|os.O_APPEND, 0644)
+	defer trieFd.Close()
+	writer := bufio.NewWriter(trieFd)
+	defer writer.Flush()
+	if err != nil {
+		return nil, nil, nil
+	}
+
 	for param, value := range params {
 
 		// todo 还有一些其余的请求参数
-		if param == "index" || param == "pageSize" || param == "curSize" {
+		if param == "index" || param == "pageSize" || param == "curPage" {
 			continue
 		}
 
@@ -372,16 +375,24 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 			var query utils.SearchQuery
 			// 针对某个字段名的过滤
 			query.FieldName = param[1:]
-			query.Value = value
-			notSearchQueries = append(searchQueries, query)
+			if value != "" {
+				query.Value = value
+				notSearchQueries = append(notSearchQueries, query)
+			}
 
 		default:
 			segmenter := utils.GetGseSegmenter()
 			var terms = make([]string, 0)
 
-			// todo value 加进 Trie 树
+			// value 加进 Trie 树
 			gde.trie.Insert(value)
 
+			// todo 将value写入TriePath的文件中，可以设置一个n值，个数到达n再一起写入
+			fmt.Println("写入 Trie 树")
+			_, err2 := writer.WriteString(value + "\n")
+			if err2 != nil {
+				return nil, nil, nil
+			}
 			fieldType, ok := idx.Fields[param]
 			if ok {
 				switch fieldType {
@@ -401,5 +412,113 @@ func (gde *GoDanceEngine) parseParams(params map[string]string, idx *gdindex.Ind
 		}
 	}
 
+	fmt.Printf("query:%v\n", searchQueries)
+	fmt.Printf("filter:%v\n", searchFilters)
+	fmt.Printf("notsearch:%v\n", notSearchQueries)
+
 	return searchFilters, searchQueries, notSearchQueries
+}
+
+func (gde *GoDanceEngine) GetDocById(indexName, id string) (map[string]string, error) {
+
+	idx := gde.idxManager.GetIndex(indexName)
+	if idx == nil {
+		return nil, errors.New("index not found")
+	}
+
+	docId, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return nil, errors.New("docId error")
+	}
+	document, ok := idx.GetDocument(uint64(docId))
+	if !ok {
+		return nil, errors.New("doc not found")
+	}
+	return document, nil
+
+}
+
+//
+//  DocWeightSort
+//  @Description: 将文档按照权重进行排序
+//  @param docMergeFilter 布尔模型过滤后的相关文档
+//  @param searchQueries  关键词集合
+//  @param idx  倒排
+//  @return []uint64
+//
+func DocWeightSort(docMergeFilter []uint64, notDocQueryNodes []utils.DocIdNode, searchQueries []utils.SearchQuery, idx *gdindex.Index) []uint64 {
+	// IDF -> TFIDF -> 空间向量模型 -> 协调因子 -> 排序好的文档
+	docLen := len(docMergeFilter)
+	keyLen := len(searchQueries)
+	docNum := float64(docLen)
+	// 某个单词在对应文档中的TFIDF值
+	//wordDocTFIDF := make(map[string][]utils.DocIdNode)
+	// 搜索词向量权重
+	vectorKey := make([]float64, keyLen)
+	// 所有文档向量
+	vectorAllDoc := make(map[uint64][]float64, docLen)
+	// 初始化类似于二维数组
+	for _, id := range docMergeFilter {
+		vectorAllDoc[id] = make([]float64, keyLen)
+	}
+	//协调因子 : 计算文档里出现的查询词个数 / 总个数
+	coord := make(map[uint64]float64, 0)
+
+	// 过滤词映射,过滤ids
+	notMap := make(map[uint64]bool, 0)
+	for _, v := range notDocQueryNodes {
+		notMap[v.Docid] = true
+	}
+
+	// 向量空间模型
+	for index, query := range searchQueries {
+		ids, ok := idx.SearchKeyDocIds(query)
+		if ok {
+			// 过滤ids
+			for i := 0; i < len(ids); {
+				if notMap[ids[i].Docid] == true {
+					// 删除过滤的文档
+					ids = append(ids[:i], ids[i+1:]...)
+				} else {
+					i++
+				}
+			}
+			// query.Value 对应的idf
+			idf := math.Log(docNum/float64(len(ids)+1)) + 1
+			//fmt.Println("idf:", idf, query.Value)
+			var maxTFIDF float64
+			for i := range ids {
+				//ids[i].WordTF = ids[i].WordTF * idf
+				TFIDF := ids[i].WordTF * idf
+				maxTFIDF = math.Max(maxTFIDF, TFIDF)
+				vectorAllDoc[ids[i].Docid][index] = TFIDF
+				coord[ids[i].Docid] += 1 / float64(keyLen)
+				//fmt.Println("coord:", coord[ids[i].Docid])
+			}
+			//wordDocTFIDF[query.Value] = ids
+			vectorKey[index] = maxTFIDF
+		}
+	}
+	//fmt.Println("vK:", vectorKey)
+	//fmt.Println("vad:", vectorAllDoc)
+	docVectorWeight := weight.DocVectorWeight(vectorKey, vectorAllDoc)
+	//fmt.Println("docvw : ", docVectorWeight)
+
+	//fmt.Println("coord:", coord)
+	// 协调因子乘向量权重后排序
+	var coordWeights utils.CoordWeightSort
+	for k, v := range docVectorWeight {
+		var cw utils.CoordWeight
+		cw.DocId = k
+		cw.Weight = v * coord[k]
+		coordWeights = append(coordWeights, cw)
+	}
+	sort.Sort(coordWeights)
+	fmt.Println(coordWeights)
+	// 排序后去掉权重只返回文档id
+	docWeightSort := make([]uint64, 0)
+	for _, v := range coordWeights {
+		docWeightSort = append(docWeightSort, v.DocId)
+	}
+	return docWeightSort
 }
