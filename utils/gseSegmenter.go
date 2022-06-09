@@ -43,7 +43,7 @@ func init() {
 			stopWords = append(stopWords, string(word))
 		}
 	}
-	err = gseSegmenter.segmenter.LoadStop()
+	err = gseSegmenter.segmenter.LoadStop(STOP_WORD_FILE_PATH)
 	if err != nil {
 		return
 	}

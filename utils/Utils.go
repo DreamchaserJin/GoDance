@@ -2,7 +2,6 @@ package utils
 
 import (
 	"bytes"
-	"container/list"
 	"io/ioutil"
 	"math"
 	"net"
@@ -20,7 +19,9 @@ const GODANCEENGINE string = "GoDanceEngine"
 const MAX_SEGMENT_SIZE uint64 = 50000
 
 // 停用词文件
-const STOP_WORD_FILE_PATH = "/home/iceberg/GolandProjects/GoDance/utils/stopWords.txt"
+// const STOP_WORD_FILE_PATH = "utils/stopWords.txt"
+
+const STOP_WORD_FILE_PATH = "/home/hz/GoProject/GoDanceEngine/GoDance/utils/stopWord-CN.txt"
 
 type DocIdNode struct {
 	Docid  uint64
@@ -183,61 +184,6 @@ func makeDocIdSlice() []DocIdNode {
 	//fmt.Printf("[WARN] ========Malloc Buffer...\n")
 	return make([]DocIdNode, 0, MAX_DOCID_LEN)
 
-}
-
-var GetDocIDsChan chan []DocIdNode
-var GiveDocIDsChan chan []DocIdNode
-
-//var GetDocInfoChan chan []DocIdNode
-//var GiveDocInfoChan chan []DocIdNode
-
-// DocIdsMaker function description : DocId的内存池
-// params :
-// return :
-func DocIdsMaker() (get, give chan []DocIdNode) {
-	get = make(chan []DocIdNode)
-	give = make(chan []DocIdNode)
-
-	go func() {
-		q := new(list.List)
-
-		for {
-			if q.Len() == 0 {
-				q.PushFront(queued{when: time.Now(), slice: makeDocIdSlice()})
-			}
-
-			e := q.Front()
-
-			timeout := time.NewTimer(time.Minute)
-			select {
-			case b := <-give:
-				timeout.Stop()
-				//fmt.Printf("Recive Buffer...\n")
-				//b=b[:MAX_DOCID_LEN]
-				q.PushFront(queued{when: time.Now(), slice: b})
-
-			case get <- e.Value.(queued).slice[:0]:
-				timeout.Stop()
-				//fmt.Printf("Sent Buffer...\n")
-				q.Remove(e)
-
-			case <-timeout.C:
-				e := q.Front()
-				for e != nil {
-					n := e.Next()
-					if time.Since(e.Value.(queued).when) > time.Minute {
-						q.Remove(e)
-						e.Value = nil
-					}
-					e = n
-				}
-
-			}
-		}
-
-	}()
-
-	return
 }
 
 // IsDateTime function description : 判断是否是日期时间格式
