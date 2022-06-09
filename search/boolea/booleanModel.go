@@ -177,3 +177,26 @@ func IntersectionDocIdAndUint64(docs1 []utils.DocIdNode, docs2 []uint64) []uint6
 
 	return IntersectionUint64(Docs1, docs2)
 }
+
+func Intersection2DocIdAndUint64(docs1 []utils.DocIdNode, docs2 []uint64) []utils.DocIdNode {
+	n := len(docs1)
+	m := len(docs2)
+	sorted := make([]utils.DocIdNode, 0)
+	p1, p2 := 0, 0
+	for {
+		if p1 == n || p2 == m {
+			break
+		}
+		if docs1[p1].Docid < docs2[p2] {
+			p1++
+		} else if docs1[p1].Docid > docs2[p2] {
+			p2++
+		} else {
+			sorted = append(sorted, docs1[p1])
+			p1++
+			p2++
+		}
+	}
+
+	return sorted
+}

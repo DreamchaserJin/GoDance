@@ -106,8 +106,8 @@ func (pfi *profileindex) addDocument(docId uint64, contentStr string) error {
 }
 
 func (pfi *profileindex) serialization(segmentName string, btdb *tree.BTreeDB) error {
-	idxFileName := fmt.Sprintf("%v%v_profileindex.pfi", segmentName, pfi.fieldName)
-	idxFd, err := os.OpenFile(idxFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
+	pfiFileName := fmt.Sprintf("%v%v_profileindex.pfi", segmentName, pfi.fieldName)
+	idxFd, err := os.OpenFile(pfiFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
 
 	pfi.btree = btdb
 
@@ -178,12 +178,7 @@ func (pfi *profileindex) mergeProfileIndex(profileindexs []*profileindex, segmen
 	fi, _ := idxFd.Stat()
 	totalOffset := int(fi.Size())
 
-	// var keySet = make([]int64, 0)
-
 	pfi.btree = btdb
-
-	// fmt.Println(btdb == nil)
-
 	type pfiMerge struct {
 		p      *profileindex
 		key    int64

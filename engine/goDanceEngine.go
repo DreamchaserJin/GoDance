@@ -187,7 +187,7 @@ func (gde *GoDanceEngine) Search(params map[string]string) (utils.DefaultResult,
 
 	// 建立过滤条件和搜索条件
 	searchFilters, searchQueries, notSearchQueries := gde.parseParams(params, idx)
-	titleQueryNodes := make([]utils.DocIdNode, 0)
+	QueryNodes := make([]utils.DocIdNode, 0)
 	docFilterIds := make([]uint64, 0)
 	notDocQueryNodes := make([]utils.DocIdNode, 0)
 
@@ -195,18 +195,29 @@ func (gde *GoDanceEngine) Search(params map[string]string) (utils.DefaultResult,
 	for _, query := range searchQueries {
 		ids, ok := idx.SearchKeyDocIds(query)
 		if ok {
-			titleQueryNodes = boolea.UnionDocIdNode(titleQueryNodes, ids)
+			QueryNodes = boolea.UnionDocIdNode(QueryNodes, ids)
 		}
+		// fmt.Printf("ids res : %v\n", ids)
 	}
-	fmt.Printf("query: %v\n", titleQueryNodes)
+	fmt.Printf("query res : %v\n", QueryNodes)
+	//fmt.Printf("query: %v\n", len(QueryNodes))
 
 	// todo 对每个 筛选词文档 求交集
-	for _, filter := range searchFilters {
-		ids, ok := idx.SearchFilterDocIds(filter)
-		if ok {
-			docFilterIds = boolea.IntersectionUint64(docFilterIds, ids)
+
+	if len(searchFilters) == 1 {
+		docFilterIds, _ = idx.SearchFilterDocIds(searchFilters[0])
+	} else {
+		for _, filter := range searchFilters {
+			var ids []uint64
+			var ok bool
+
+			ids, ok = idx.SearchFilterDocIds(filter)
+			if ok {
+				docFilterIds = boolea.IntersectionUint64(docFilterIds, ids)
+			}
 		}
 	}
+
 	fmt.Printf("filter: %v\n", docFilterIds)
 
 	// todo 对每个过滤词 求并集
@@ -220,16 +231,24 @@ func (gde *GoDanceEngine) Search(params map[string]string) (utils.DefaultResult,
 
 	// todo 对 所有搜索词（标题、内容）求交集，再跟筛选词求交集，再对过滤词 NOT
 	// 搜索词跟筛选词求交集
-	keyFilter := boolea.IntersectionDocIdAndUint64(titleQueryNodes, docFilterIds)
+	// todo 为什么不能是  var keyFilter []utils.DocIdNode
+	var keyFilter []uint64
+	if len(searchFilters) != 0 {
+		keyFilter = boolea.IntersectionDocIdAndUint64(QueryNodes, docFilterIds)
+	} else {
+		keyFilter = utils.DocIdNodeChangeUint64(QueryNodes)
+	}
 	// not
 	docAndNot := boolea.DocAndNot(keyFilter, notDocQueryNodes)
+	fmt.Printf("keyFilter : %v\n", keyFilter)
 	fmt.Printf("merge : %v\n", docAndNot)
 
-	// todo 对docMergeFilter的所有文档进行权重排序
-	docWeightSort := DocWeightSort(docAndNot, notDocQueryNodes, searchQueries, idx)
+	// todo 对 docMergeFilter 的所有文档进行权重排序
+	docWeightSort := DocWeightSort(docAndNot, notDocQueryNodes, searchQueries, idx, docFilterIds)
 
 	lens := int64(len(docWeightSort))
 	fmt.Printf("lens : %v\n", lens)
+	fmt.Printf("docWeightSort:", docWeightSort)
 
 	if lens == 0 {
 		return resultSet, nil
@@ -456,9 +475,14 @@ func (gde *GoDanceEngine) GetDocById(indexName, id string) (map[string]string, e
 //  @param idx  倒排
 //  @return []uint64
 //
-func DocWeightSort(docMergeFilter []uint64, notDocQueryNodes []utils.DocIdNode, searchQueries []utils.SearchQuery, idx *gdindex.Index) []uint64 {
+func DocWeightSort(docMergeFilter []uint64, notDocQueryNodes []utils.DocIdNode, searchQueries []utils.SearchQuery,
+	idx *gdindex.Index, docFilterIds []uint64) []uint64 {
+
 	// IDF -> TFIDF -> 空间向量模型 -> 协调因子 -> 排序好的文档
 	docLen := len(docMergeFilter)
+	if docLen == 0 {
+		return nil
+	}
 	keyLen := len(searchQueries)
 	docNum := float64(docLen)
 	// 某个单词在对应文档中的TFIDF值
@@ -466,7 +490,7 @@ func DocWeightSort(docMergeFilter []uint64, notDocQueryNodes []utils.DocIdNode, 
 	// 搜索词向量权重
 	vectorKey := make([]float64, keyLen)
 	// 所有文档向量
-	vectorAllDoc := make(map[uint64][]float64, docLen)
+	vectorAllDoc := make(map[uint64][]float64, 0)
 	// 初始化类似于二维数组
 	for _, id := range docMergeFilter {
 		vectorAllDoc[id] = make([]float64, keyLen)
@@ -485,12 +509,17 @@ func DocWeightSort(docMergeFilter []uint64, notDocQueryNodes []utils.DocIdNode, 
 		ids, ok := idx.SearchKeyDocIds(query)
 		if ok {
 			// 过滤ids
-			for i := 0; i < len(ids); {
-				if notMap[ids[i].Docid] == true {
-					// 删除过滤的文档
-					ids = append(ids[:i], ids[i+1:]...)
-				} else {
-					i++
+			if len(docFilterIds) != 0 {
+				ids = boolea.Intersection2DocIdAndUint64(ids, docFilterIds)
+			}
+			if len(notMap) != 0 {
+				for i := 0; i < len(ids); {
+					if notMap[ids[i].Docid] == true {
+						// 删除过滤的文档
+						ids = append(ids[:i], ids[i+1:]...)
+					} else {
+						i++
+					}
 				}
 			}
 			// query.Value 对应的idf
@@ -505,9 +534,12 @@ func DocWeightSort(docMergeFilter []uint64, notDocQueryNodes []utils.DocIdNode, 
 				} else {
 					TFIDF = ids[i].WordTF * idf
 				}
-
 				maxTFIDF = math.Max(maxTFIDF, TFIDF)
-				vectorAllDoc[ids[i].Docid][index] = TFIDF
+				if cap(vectorAllDoc[ids[i].Docid]) != 0 {
+					vectorAllDoc[ids[i].Docid][index] = TFIDF
+				}
+				//fmt.Println(len(vectorAllDoc[ids[i].Docid]))
+
 				coord[ids[i].Docid] += 1 / float64(keyLen)
 				//fmt.Println("coord:", coord[ids[i].Docid])
 			}

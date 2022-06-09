@@ -202,14 +202,20 @@ func (f *Field) queryFilter(filter utils.SearchFilters) ([]uint64, bool) {
 
 	switch filter.Type {
 	case utils.FILT_EQ:
-		start = filter.Start
-		end = filter.Start
+		if f.fieldType == utils.IDX_TYPE_DATE {
+			start = filter.Start
+			end = filter.Start + 86399
+			break
+		} else {
+			start = filter.Start
+			end = filter.Start
+		}
 	case utils.FILT_RANGE:
 		start = filter.Start
 		end = filter.End
 	case utils.FILT_LESS:
 		start = 0
-		end = filter.End
+		end = filter.Start
 	case utils.FILT_OVER:
 		start = filter.Start
 		end = 0xFFFFFFFFFF
@@ -304,7 +310,7 @@ func (f *Field) destroy() {
 	}
 }
 
-func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTreeDB, delDocSet map[uint64]struct{}) error {
+func (f *Field) mergeField(fields []*Field, segmentName string, btdb *tree.BTreeDB, delDocSet map[uint64]struct{}) error {
 
 	if f.pfl != nil {
 		pfls := make([]*profile, 0)
@@ -323,7 +329,8 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 	}
 
 	if f.pfi != nil {
-		f.btree = btree
+		f.btree = btdb
+
 		if err := f.btree.AddBTree(f.fieldName); err != nil {
 			f.Logger.Error("[ERROR] field %v Create Btree Error : %v", f.fieldName, err)
 			return err
@@ -336,7 +343,7 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btree *tree.BTre
 				f.Logger.Error("[INFO] Invert %v is nil")
 			}
 		}
-		if err := f.pfi.mergeProfileIndex(pfis, segmentName, btree); err != nil {
+		if err := f.pfi.mergeProfileIndex(pfis, segmentName, btdb); err != nil {
 			return err
 		}
 	}
