@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 )
@@ -65,17 +64,16 @@ func (s *Server) RequestVote(ctx context.Context, r *VoteArgs, res *VoteReply) e
 }
 
 type HeartArgs struct {
-	//todo 发送最新提交的日志id和前一个节点的id
-	//前一个未提交的日志id
-	PreCommitId uint64
-	//最新提交的日志id
-	CommittedId uint64
 	//latest log id(committed)
 	//LogEntryId uint64
 	//任期
 	Term int64
 	//nodeID
 	Id int64
+	//前一个未提交的日志id
+	PreCommitId uint64
+	//最新提交的日志id
+	CommittedId uint64
 }
 
 // HeartReply 探活请求（日志增加请求）
@@ -84,12 +82,8 @@ type HeartReply struct {
 	Success bool
 	//接受到探活请求的任期
 	Term int64
-	//节点状态
-	//State CMState
 	//Follower最近一次提交的日志id
 	LatestCommitted uint64
-	//最近一次增加的日志id
-	//latestLog uint64
 }
 
 // HeatBeat 探活请求，由主节点来调用此RPC方法
@@ -126,40 +120,34 @@ func (s *Server) HeatBeat(ctx context.Context, a *HeartArgs, r *HeartReply) erro
 }
 
 type EntryArgs struct {
-	PreNode  int
+	PreNode  uint64
 	LogEntry LogEntry
+	Term     int64
 }
 
 // AppendEntry RPC called by leader
-//todo 这里要明白有些日志对于领导者而言是不存在的，需要验证前者是否一致
-func (s *Server) AppendEntry(ctx context.Context, logEntry *LogEntry, reply *CommonReply) error {
-	// todo 需要验证term是否大于等于自身（保证一旦发起竞选，新的日志将写入失败），以及是否是上一个日志是否一致
-	AppendSelfLog(logEntry)
-	reply.Success = true
+func (s *Server) AppendEntry(ctx context.Context, args *EntryArgs, reply *CommonReply) error {
+	//不接收比自己小的term节点日志
+	if args.Term < State.selfState.term {
+		return nil
+	}
+	reply.Success = AppendSelfLog(&args.LogEntry, args.PreNode)
 	return nil
 }
 
 type EntriesArgs struct {
-	CommittedIds []uint64
+	PreCommitted uint64
 	IncreasedLog []LogEntry
+	Term         int64
 }
 
 // AppendEntries 由Leader来调用，用于同步Leader和Flower日志的一致性
+// 之前心跳已经告诉了Leader自己的最后提交的日志，然后该方法将差异数据覆盖到自己节点上
 func (s *Server) AppendEntries(ctx context.Context, args *EntriesArgs, reply *CommonReply) error {
-	// todo 需要验证提交的日志term是否大于等于自身，是否是上一个日志是否一致以及提交committed是否一致
-	for _, e := range args.IncreasedLog {
-		AppendSelfLog(&e)
+	if args.Term < State.selfState.term {
+		return nil
 	}
-
-	for id := range args.CommittedIds {
-		//todo 修改该调用方式
-		//res,cid:= CommitLog(id,)
-		if !res {
-			log.Panicln("节点提交失败！")
-			break
-		}
-	}
-	reply.Success = true
+	reply.Success = AppendSelfLogs(args.IncreasedLog, preCommitted)
 	return nil
 }
 

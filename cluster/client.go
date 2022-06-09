@@ -124,8 +124,10 @@ func sendHeartBeat(c *nodeClient) {
 			break
 		}
 		args := HeartArgs{
-			Term: State.selfState.term,
-			Id:   State.selfState.nodeId,
+			Term:        State.selfState.term,
+			Id:          State.selfState.nodeId,
+			CommittedId: latestCommitted,
+			PreCommitId: preCommitted,
 		}
 		// rpc同步调用
 		err := c.client.Call(context.Background(), "RaftServe", "HeartBeat", &args, &reply)
@@ -136,11 +138,10 @@ func sendHeartBeat(c *nodeClient) {
 		//TODO 这里可以修改为当日志差异过大直接进行state复制
 		if reply.Success {
 			//如果发现follower日志不一致，则进行RPC调用进行同步
-			if reply.latestLog != latestLog || reply.lastCommitted != latestCommitted {
-				cids, ids := Diff(reply.lastCommitted, reply.latestLog)
+			if !reply.Success {
+				cids := Diff(reply.LatestCommitted)
 				entriesArgs := EntriesArgs{
-					CommittedIds: cids,
-					IncreasedLog: ids,
+					IncreasedLog: cids,
 				}
 				var entriesReply CommonReply
 				// rpc同步调用

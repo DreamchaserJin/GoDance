@@ -61,6 +61,27 @@ func Election() {
 
 }
 
+// AddNode  增加一个节点，如果增加成功，则增加一条clients这里的逻辑保证Leader节点中每一条记录都是最终的
+//这里只能由领导者调用
+func AddNode(n *node) bool {
+	r := appendClusterLog(NodeAdd, *n)
+	if r {
+		appendClient(n)
+	}
+	return r
+}
+
+// DeleteNode  删除一个节点
+// 这里只能由领导者调用
+func DeleteNode(nodeId int64) bool {
+	//删除一个节点同时要删除对应client
+	r := appendClusterLog(NodeDelete, nodeId)
+	if r {
+		deleteClient(nodeId)
+	}
+	return r
+}
+
 //TODO 需要检查新最新的日志是否已经大多数提交或者存在节点已经提交，如果存在这种情况则提交该日志
 func checkLatest() {
 

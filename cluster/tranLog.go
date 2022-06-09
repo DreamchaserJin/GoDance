@@ -54,37 +54,52 @@ type LogEntry struct {
 	Committed bool
 }
 
-// AddNode  增加一个节点，如果增加成功，则增加一条clients这里的逻辑保证Leader节点中每一条记录都是最终的
-//这里只能由领导者调用
-func AddNode(n *node) bool {
-	r := appendClusterLog(NodeAdd, *n)
-	if r {
-		appendClient(n)
-	}
-	return r
-}
-
-// DeleteNode  删除一个节点
-// 这里只能由领导者调用
-func DeleteNode(nodeId int64) bool {
-	//删除一个节点同时要删除对应client
-	r := appendClusterLog(NodeDelete, nodeId)
-	if r {
-		deleteClient(nodeId)
-	}
-	return r
-}
-
-// AppendSelfLog 自身节点增加一条日志记录
+// AppendSelfLog 自身节点增加一条日志记录,返回是否成功
 // 从节点自身调用
-//TODO 要检查前一个
-func AppendSelfLog(entry *LogEntry) {
+func AppendSelfLog(entry *LogEntry, preId uint64) (res bool) {
 	logMutex.Lock()
+	defer logMutex.Unlock()
 	//如果不存在才添加，保证幂等性
-	if _, ok := id2index[entry.Id]; !ok {
-		appendLog(entry)
+	if _, ok := id2index[entry.Id]; ok {
+		return true
 	}
-	logMutex.Unlock()
+	res = appendLogWithCheck(entry, preId)
+
+	return res
+}
+
+// AppendSelfLogs 批量增加日志，当前已提交的日志开始覆盖之后的日志（不过这之前需要进行校验），返回执行结果
+func AppendSelfLogs(entries []LogEntry, preCommitted uint64) (res bool) {
+	logMutex.Lock()
+	defer logMutex.Unlock()
+	if latestCommitted != preCommitted {
+		return false
+	}
+	base := id2index[preCommitted] + 1
+	index := 0
+	//找到最先不重复的下标
+	for i, v := range entries {
+		//如果找到则返回
+		if v.Id != logs[i+base].Id {
+			index = i
+			break
+		}
+	}
+	//删除后续的元素映射
+	for i := index; i < len(entries); i++ {
+		//删除id到下标映射
+		delete(id2index, logs[index+base].Id)
+	}
+	//删除后续元素
+	logs = logs[:base+index]
+	//增加日志
+	for i := index; i < len(entries); i++ {
+		appendLog(&entries[i])
+		if entries[i].Committed {
+			entries[i].load2State()
+		}
+	}
+	return true
 }
 
 // CommitLog 根据日志id提交日志到状态机中
@@ -103,26 +118,15 @@ func CommitLog(id uint64, preId uint64) (res bool, committedId uint64) {
 	return
 }
 
-// Diff 用于比较当前节点和传入参数之前的日志，并返回对应的差异
+// Diff 用于比较当前节点和传入参数之前的日志，并返回对应的差异日志
 //@committed 最近提交的id
-//@logId 最近增加的日志id
-//@return committedIds 差异提交的id数组， increasedLog 这期间增加的Log
-func Diff(committed uint64, logId uint64) (committedIds []uint64, increasedLog []LogEntry) {
+//@return increasedLog 这期间增加的Log
+func Diff(committed uint64) (increasedLog []LogEntry) {
 	logMutex.Lock()
 	defer logMutex.Unlock()
 	//提交的索引下标
 	c := id2index[committed]
-	//增加的日志下标
-	l := id2index[logId]
-	for i := c + 1; i < len(logs); i += 1 {
-		if logs[i].Committed {
-			committedIds = append(committedIds, logs[i].Id)
-		}
-		if i > l {
-			increasedLog = append(increasedLog, logs[i])
-		}
-	}
-	return committedIds, increasedLog
+	return logs[c+1:]
 }
 
 //todo persistent LogEntry ，只有MasterNode节点需要持久化日志
@@ -227,6 +231,18 @@ func appendClusterLog(op operation, object any) bool {
 	return true
 }
 
+//增加一条日志，返回是否成功
+//@entry 增加的日志
+//@preId 前一个日志的id
+func appendLogWithCheck(entry *LogEntry, preId uint64) bool {
+	if logs[len(logs)-1].Id != preId {
+		return false
+	}
+	appendLog(entry)
+	return true
+}
+
+//增加一条日志，返回是否成功
 func appendLog(entry *LogEntry) {
 	entry.persistent()
 	logs = append(logs, *entry)
