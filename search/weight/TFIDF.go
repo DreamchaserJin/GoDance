@@ -1,6 +1,7 @@
 package weight
 
-const TITLEBOOST = 4
+// 标题与内容权重的倍数
+const TITLEBOOST = 10
 
 // 关键词与TF-IDF
 type WordTfIdf struct {
@@ -31,24 +32,4 @@ func TF(listWords []string) map[string]float64 {
 		wordTf[word] = docFrequency[word] / float64(sumWorlds)
 	}
 	return wordTf
-}
-
-//
-//  TwoWeightSum
-//  @Description: 一篇文章两种类型的权重和，比如标题，摘要，内容；BOOST控制倍数
-//  @param WeightType1
-//  @param WeightType2
-//  @param BOOST
-//  @return WordTfIdfs
-//
-func TwoWeightSum(WeightType1 WordTfIdfs, WeightType2 WordTfIdfs, BOOST float64) WordTfIdfs {
-	var sumWeight WordTfIdfs
-	// 都是以关键词的顺序进行遍历
-	for i := range WeightType2 {
-		var wti WordTfIdf
-		wti.Word = WeightType1[i].Word
-		wti.Value = WeightType1[i].Value*BOOST + WeightType2[i].Value
-		sumWeight = append(sumWeight, wti)
-	}
-	return sumWeight
 }

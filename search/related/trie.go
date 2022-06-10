@@ -8,6 +8,7 @@ import (
 	"os"
 )
 
+// 字典树
 type Trie struct {
 	// rune代表一个中文字符
 	Children  map[rune]*Trie
@@ -24,7 +25,7 @@ func Constructor(triePath string) Trie {
 
 	var trieTree = Trie{}
 
-	// todo 初始化trie树，将triePath文件下的搜索词插入到字典树中
+	// 初始化trie树，将triePath文件下的搜索词插入到字典树中
 	fd, err := os.OpenFile(triePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
 		panic(err)
@@ -39,7 +40,7 @@ func Constructor(triePath string) Trie {
 		if e != nil {
 			panic(err)
 		}
-		// todo 插入操作
+		// 插入操作
 		trieTree.Insert(string(word))
 	}
 
