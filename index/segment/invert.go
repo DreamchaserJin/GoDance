@@ -31,18 +31,6 @@ type invert struct {
 	//btree         *tree.BTreeDB
 }
 
-//func newEmptyFakeInvert(fieldType uint32, startDocId uint32, fieldName string, logger *utils.Log4FE) *invert {
-//	ivt := &invert{
-//		curDocId:      startDocId,
-//		isMemory:      true,
-//		fieldType:     fieldType,
-//		fieldName:     fieldName,
-//		memoryHashMap: nil,
-//		Logger:        logger,
-//	}
-//	return ivt
-//}
-
 func newEmptyInvert(fieldType uint64, startDocId uint64, fieldName string, logger *utils.Log4FE) *invert {
 	ivt := &invert{
 		curDocId:      startDocId,
@@ -205,116 +193,6 @@ func (ivt *invert) destroy() {
 func (ivt *invert) setIdxMmap(mmap *utils.Mmap) {
 	ivt.idxMmap = mmap
 }
-
-//func (ivt *invert) setBtree(btdb *tree.BTreeDB) {
-//	ivt.btree = btdb
-//}
-
-//func (ivt *invert) mergeInvert(inverts []*invert, segmentName string, btdb *tree.BTreeDB) error {
-//	idxFileName := fmt.Sprintf("%v%v_invert.idx", segmentName, ivt.fieldName)
-//	idxFd, err := os.OpenFile(idxFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
-//	if err != nil {
-//		return err
-//	}
-//	defer idxFd.Close()
-//
-//	fi, _ := idxFd.Stat()
-//	totalOffset := int(fi.Size())
-//
-//	ivt.btree = btdb
-//	type ivtMerge struct {
-//		ivt    *invert
-//		key    string
-//		docids []utils.DocIdNode
-//		pgnum  uint32
-//		index  int
-//	}
-//
-//	ivts := make([]ivtMerge, 0)
-//
-//	for _, i := range inverts {
-//		if i.btree == nil {
-//			continue
-//		}
-//
-//		key, _, pgnum, index, ok := ivt.GetFirstKV()
-//		if !ok {
-//			continue
-//		}
-//
-//		docIds, _ := ivt.queryTerm(key)
-//		ivts = append(ivts, ivtMerge{
-//			ivt:    i,
-//			key:    key,
-//			docids: docIds,
-//			pgnum:  pgnum,
-//			index:  index,
-//		})
-//	}
-//
-//	resflag := 0
-//	for i := range ivts {
-//		resflag = resflag | (1 << uint(i))
-//	}
-//	flag := 0
-//	for flag != resflag {
-//		maxkey := ""
-//		meridxs := make([]int, 0)
-//		for idx, ivt := range ivts {
-//
-//			if (flag>>uint(idx)&0x1) == 0 && maxkey < ivt.key {
-//				maxkey = ivt.key
-//				meridxs = make([]int, 0)
-//				meridxs = append(meridxs, idx)
-//				continue
-//			}
-//
-//			if (flag>>uint(idx)&0x1) == 0 && maxkey == ivt.key {
-//				meridxs = append(meridxs, idx)
-//				continue
-//			}
-//
-//		}
-//
-//		value := make([]utils.DocIdNode, 0)
-//
-//		for _, idx := range meridxs {
-//			value = append(value, ivts[idx].docids...)
-//
-//			key, _, pgnum, index, ok := ivts[idx].ivt.GetNextKV(ivts[idx].key)
-//			if !ok {
-//				flag = flag | (1 << uint(idx))
-//				continue
-//			}
-//
-//			ivts[idx].key = key
-//			ivts[idx].pgnum = pgnum
-//			ivts[idx].index = index
-//			ivts[idx].docids, ok = ivts[idx].ivt.queryTerm(key)
-//
-//		}
-//
-//		lens := len(value)
-//		lenBufer := make([]byte, 8)
-//		binary.LittleEndian.PutUint64(lenBufer, uint64(lens))
-//		idxFd.Write(lenBufer)
-//		buffer := new(bytes.Buffer)
-//		err = binary.Write(buffer, binary.LittleEndian, value)
-//		if err != nil {
-//			ivt.Logger.Error("[ERROR] invert --> Merge :: Error %v", err)
-//			return err
-//		}
-//		idxFd.Write(buffer.Bytes())
-//		ivt.btree.Set(ivt.fieldName, maxkey, uint64(totalOffset))
-//		totalOffset = totalOffset + 8 + lens*utils.DOCNODE_SIZE
-//
-//	}
-//
-//	ivt.memoryHashMap = nil
-//	ivt.isMemory = false
-//
-//	return nil
-//}
 
 func (ivt *invert) mergeInvert(inverts []*invert, segmentName string) error {
 

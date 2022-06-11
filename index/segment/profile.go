@@ -126,6 +126,7 @@ func (pfl *profile) addDocument(docId uint64, contentStr string) error {
 	} else if pfl.fieldType == utils.IDX_TYPE_DATE {
 
 		value, _ = utils.IsDateTime(contentStr)
+
 		pfl.pflNumber = append(pfl.pflNumber, value)
 
 	} else if pfl.fieldType == utils.IDX_TYPE_FLOAT {

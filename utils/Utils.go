@@ -1,11 +1,7 @@
 package utils
 
 import (
-	"bytes"
-	"io/ioutil"
 	"math"
-	"net"
-	"net/http"
 	"os"
 	"time"
 )
@@ -16,12 +12,14 @@ const TRIE_PATH string = "./data/trieTree.tr"
 
 // FALCONENGINENAME base名称
 const GODANCEENGINE string = "GoDanceEngine"
-const MAX_SEGMENT_SIZE uint64 = 50000
+const MAX_SEGMENT_SIZE uint64 = 100000
 
 // 停用词文件
 // const STOP_WORD_FILE_PATH = "utils/stopWords.txt"
 
-const STOP_WORD_FILE_PATH = "/home/hz/GoProject/GoDanceEngine/GoDance/utils/stopWord-CN.txt"
+const STOP_WORD_FILE_PATH = "utils/stopWord-CN.txt"
+
+var DocIdChan chan []DocIdNode
 
 type DocIdNode struct {
 	Docid  uint64
@@ -100,6 +98,8 @@ const (
 	IDX_TYPE_DATE = 15 // 日期型索引 '2015-11-11 00:11:12'，日期型只建立正排，转成时间戳存储
 
 	IDX_TYPE_PK = 21 //主键类型，倒排正排都需要，倒排使用B+树存储
+
+	IDX_TYPE_DESC = 31 // 只存储不索引的类型
 )
 
 // 过滤类型，对应filtertype
@@ -117,11 +117,9 @@ type TermInfo struct {
 
 /*************************************************************************
 索引查询接口
-索引查询分为 查询和过滤,统计，子查询四种
+索引查询分为 查询和过滤
 查询：倒排索引匹配
 过滤：正排索引过滤
-统计：汇总某个字段，然后进行统计计算
-子查询：必须是有父子
 ************************************************************************/
 // FSSearchQuery function description : 查询接口数据结构[用于倒排索引查询]，内部都是求交集
 type SearchQuery struct {
@@ -138,8 +136,6 @@ type SearchFilters struct {
 	Type      uint64  `json:"_type"`
 }
 
-// 查询返回的数据结构项
-
 // DefaultResult
 // @Description: 返回给Web层的 Json
 type DefaultResult struct {
@@ -151,39 +147,9 @@ type DefaultResult struct {
 	Results    []map[string]string `json:"results"`
 }
 
-//type Engine interface {
-//	Search(method string, parms map[string]string, body []byte) (string, error)
-//	CreateIndex(method string, parms map[string]string, body []byte) error
-//	UpdateDocument(method string, parms map[string]string, body []byte) (string, error)
-//	LoadData(method string, parms map[string]string, body []byte) (string, error)
-//	PullDetail(method string, parms map[string]string, body []byte) ([]string, uint64)
-//	JoinNode(method string, parms map[string]string, body []byte) (string, error)
-//	Heart(method string, parms map[string]string, body []byte) (map[string]string, error)
-//	InitEngine() error
-//}
-
 func Exist(filename string) bool {
 	_, err := os.Stat(filename)
 	return err == nil || os.IsExist(err)
-}
-
-type queued struct {
-	when  time.Time
-	slice []DocIdNode
-}
-
-type docqueued struct {
-	when  time.Time
-	slice []DocIdNode
-}
-
-const MAX_DOCID_LEN = 1000
-
-func makeDocIdSlice() []DocIdNode {
-
-	//fmt.Printf("[WARN] ========Malloc Buffer...\n")
-	return make([]DocIdNode, 0, MAX_DOCID_LEN)
-
 }
 
 // IsDateTime function description : 判断是否是日期时间格式
@@ -223,67 +189,6 @@ func FormatDateTime(timestamp int64) (string, bool) {
 	tm := time.Unix(timestamp, 0)
 	return tm.Format("2006-01-02"), true
 
-}
-
-func RequestUrl(url string) ([]byte, error) {
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			Dial: func(netw, addr string) (net.Conn, error) {
-				conn, err := net.DialTimeout(netw, addr, time.Second*2)
-				if err != nil {
-					return nil, err
-				}
-				conn.SetDeadline(time.Now().Add(time.Second * 2))
-				return conn, nil
-			},
-			ResponseHeaderTimeout: time.Second * 2,
-		},
-	}
-	rsp, err := client.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer rsp.Body.Close()
-	body, err := ioutil.ReadAll(rsp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return body, nil
-
-}
-
-func PostRequest(url string, b []byte) ([]byte, error) {
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			Dial: func(netw, addr string) (net.Conn, error) {
-				conn, err := net.DialTimeout(netw, addr, time.Second*2)
-				if err != nil {
-					return nil, err
-				}
-				conn.SetDeadline(time.Now().Add(time.Second * 2))
-				return conn, nil
-			},
-			ResponseHeaderTimeout: time.Second * 2,
-		},
-	}
-
-	body := bytes.NewBuffer([]byte(b))
-	res, err := client.Post(url, "application/json;charset=utf-8", body)
-	if err != nil {
-
-		return nil, err
-	}
-	result, err := ioutil.ReadAll(res.Body)
-	res.Body.Close()
-	if err != nil {
-
-		return nil, err
-	}
-
-	return result, nil
 }
 
 func DocIdNodeChangeUint64(docIdNode []DocIdNode) []uint64 {
