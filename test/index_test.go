@@ -43,7 +43,7 @@ func TestCreateIndex(t *testing.T) {
 
 	// 添加字段
 	content := make(map[string]string, 0)
-	csvTable := utils.LoadCsvFile("/home/iceberg/桌面/高考作文1.csv", 1)
+	csvTable := utils.LoadCsvFile("/home/iceberg/Downloads/高考作文.csv", 1)
 	for i, val := range csvTable.Records {
 		content["id"] = strconv.Itoa(i)
 		content["year"] = val.GetString("year")
@@ -56,7 +56,6 @@ func TestCreateIndex(t *testing.T) {
 	if err != nil {
 		fmt.Printf("err happen : %v", err)
 	}
-
 }
 
 func TestDeleteField(t *testing.T) {
@@ -130,7 +129,7 @@ func TestSearch(t *testing.T) {
 
 	q1 := utils.SearchQuery{
 		FieldName: "title",
-		Value:     "战斗",
+		Value:     "选择",
 	}
 
 	//q2 := utils.SearchQuery{

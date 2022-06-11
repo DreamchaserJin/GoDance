@@ -16,15 +16,14 @@ import (
 )
 
 type Segment struct {
-	StartDocId  uint64            `json:"startDocId"`
-	MaxDocId    uint64            `json:"maxDocId"`
-	SegmentName string            `json:"segmentName"`
-	FieldInfos  map[string]uint64 `json:"fields"`
+	StartDocId  uint64            `json:"startDocId"`  // 段内docId的最小值
+	MaxDocId    uint64            `json:"maxDocId"`    // 段内docId的最大值
+	SegmentName string            `json:"segmentName"` // 段的名称，序列化时文件名的一部分
+	FieldInfos  map[string]uint64 `json:"fields"`      // 记录段内字段的类型信息
 	Logger      *utils.Log4FE     `json:"-"`
-
-	fields   map[string]*Field
-	isMemory bool
-	btdb     *tree.BTreeDB
+	fields      map[string]*Field // 段内字段的
+	isMemory    bool              // 标识段是否在内存中
+	btdb        *tree.BTreeDB     // 段的数据库，用于存储各字段的正排索引
 }
 
 // NewEmptySegmentByFieldsInfo

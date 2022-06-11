@@ -18,6 +18,10 @@ func init() {
 	if err != nil {
 		panic(err.Error())
 	}
+	err = segmenter.LoadDict()
+	if err != nil {
+		panic(err.Error())
+	}
 	err = segmenter.LoadStop()
 	if err != nil {
 		panic(err.Error())

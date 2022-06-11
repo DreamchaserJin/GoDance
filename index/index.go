@@ -742,6 +742,7 @@ func (idx *Index) SearchKeyDocIds(query utils.SearchQuery) ([]utils.DocIdNode, b
 
 	// 最终返回的结果
 	docIds := make([]utils.DocIdNode, 0)
+	// todo 添加多线程搜索
 	for _, seg := range idx.segments {
 		docIds, _ = seg.SearchDocIds(query, idx.bitmap, docIds)
 	}
@@ -760,6 +761,7 @@ func (idx *Index) SearchFilterDocIds(filter utils.SearchFilters) ([]uint64, bool
 
 	// 最终返回的结果
 	docIds := make([]uint64, 0)
+	// todo 添加多线程搜索
 	for _, seg := range idx.segments {
 		docIds, _ = seg.SearchDocFilter(filter, idx.bitmap, docIds)
 	}

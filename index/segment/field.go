@@ -117,7 +117,6 @@ func newFieldFromLocalFile(fieldName, segmentName string, start, max uint64,
 	f.Logger.Info("[INFO] Field %v Serialization Finish", f.fieldName)
 	if fieldType == utils.IDX_TYPE_STRING ||
 		fieldType == utils.IDX_TYPE_STRING_SEG {
-		//f.ivt = newInvertFromLocalFile(btree, fieldType, fieldName, segmentName, f.idxMmap, logger)
 		f.ivt = newInvertFromLocalFile(fieldType, fieldName, segmentName, f.idxMmap, logger)
 	}
 
@@ -349,11 +348,6 @@ func (f *Field) mergeField(fields []*Field, segmentName string, btdb *tree.BTree
 	}
 
 	if f.ivt != nil {
-		//f.btree = btree
-		//if err := f.btree.AddBTree(f.fieldName); err != nil {
-		//	f.Logger.Error("[ERROR] Invert %v Create Btree Error : %v", f.fieldName, err)
-		//	return err
-		//}
 		ivts := make([]*invert, 0)
 		for _, fd := range fields {
 			if fd.ivt != nil {
