@@ -317,7 +317,7 @@ func (idx *Index) AddDocument(content map[string]string) (uint64, error) {
 
 		idx.pkMap[int64(pkval)] = fmt.Sprintf("%v", docId)
 
-		if idx.MaxDocId%50000 == 0 {
+		if idx.MaxDocId%500000 == 0 {
 			idx.primary.SetBatch(idx.PrimaryKey, idx.pkMap)
 			idx.pkMap = nil
 			idx.pkMap = make(map[int64]string)
@@ -392,7 +392,7 @@ func (idx *Index) DeleteDocument(primaryKey string) error {
 		if idx.bitmap.GetBit(docId) == 1 {
 			return nil
 		}
-		success := idx.bitmap.SetBit(uint64(docId), 1)
+		success := idx.bitmap.SetBit(docId, 1)
 		if success {
 			idx.deleteDocumentByDocId(docId)
 		}
@@ -550,99 +550,6 @@ func (idx *Index) MergeSegments() error {
 	return idx.storeIndex()
 }
 
-// 老版本代码
-//// MergeSegments
-//// @Description 合并段
-//// @Param start  合并段的起点
-//// @Return 任何error
-//func (idx *Index) MergeSegments(start int) error {
-//	startIdx := -1
-//
-//	idx.segmentMutex.Lock()
-//	defer idx.segmentMutex.Unlock()
-//
-//	if len(idx.segments) == 1 {
-//		return nil
-//	}
-//
-//	// start 小于 0 ，从头开始检索
-//	if start < 0 {
-//		for i := range idx.segments {
-//			if idx.segments[i].MaxDocId-idx.segments[i].StartDocId < 1000000 {
-//				startIdx = i
-//				break
-//			}
-//		}
-//	} else {
-//		if start > len(idx.segments)-1 {
-//			return nil
-//		}
-//		startIdx = start
-//	}
-//
-//	if startIdx == -1 {
-//		return nil
-//	}
-//
-//	needMergeSegments := idx.segments[startIdx:]
-//
-//	segmentName := fmt.Sprintf("%v%v_%v/", idx.PathName, idx.Name, idx.NextSegmentSuffix)
-//	err := os.MkdirAll(segmentName, 0755)
-//
-//	if err != nil {
-//		idx.Logger.Error("Mkdir error : %v", err)
-//	}
-//	fields := make(map[string]uint64)
-//	for fieldName, fieldType := range idx.Fields {
-//		if fieldType != utils.IDX_TYPE_PK {
-//			fields[fieldName] = fieldType
-//		}
-//	}
-//
-//	tmpSegment := segment.NewEmptySegmentByFieldsInfo(segmentName, needMergeSegments[0].StartDocId, fields, idx.Logger)
-//	idx.NextSegmentSuffix++
-//
-//	if err := idx.storeIndex(); err != nil {
-//		return err
-//	}
-//	delFileName := fmt.Sprintf("%v%v.del", idx.PathName, idx.Name)
-//
-//	delMmap, err := utils.NewMmap(delFileName, utils.MODE_APPEND)
-//	if err != nil {
-//		return err
-//	}
-//
-//	delDocSet := delMmap.ReadIdsSet(0, idx.DelDocNum)
-//
-//	tmpSegment.MergeSegments(needMergeSegments, delDocSet)
-//
-//	tmpSegment.Close()
-//	tmpSegment = nil
-//
-//	for _, seg := range needMergeSegments {
-//		seg.Destroy()
-//	}
-//
-//	tmpSegment = segment.NewSegmentFromLocalFile(segmentName, idx.Logger)
-//	// todo 合并段时好像并没有删除段对应的文件
-//	if startIdx > 0 {
-//		idx.segments = idx.segments[:startIdx]
-//		idx.SegmentNames = idx.SegmentNames[:startIdx]
-//	} else {
-//		idx.segments = make([]*segment.Segment, 0)
-//		idx.SegmentNames = make([]string, 0)
-//	}
-//
-//	idx.segments = append(idx.segments, tmpSegment)
-//	idx.SegmentNames = append(idx.SegmentNames, segmentName)
-//
-//	delMmap.Unmap()
-//	os.Truncate(delFileName, 0)
-//	idx.DelDocNum = 0
-//
-//	return idx.storeIndex()
-//}
-
 // Close
 // @Description 关闭索引，从内存中回收
 // @Return 任何error
@@ -679,60 +586,6 @@ func (idx *Index) Close() error {
 
 }
 
-// SearchDocIds
-// @Description 最基本的搜索方法
-// @Param queries 搜索结构体切片，定义本次搜索需要查找的内容
-// @Param filters 过滤结构体切片，定义本次搜索需要过滤的内容
-// @Return []utils.DocIdNode 查找的文档 id 列表
-// @Return bool 是否查找到结果
-// todo 考虑放引擎层
-//func (idx *Index) SearchDocIds(queries []utils.SearchQuery, filters []utils.SearchFilters) ([]utils.DocIdNode, bool) {
-//
-//	// 最终返回的结果
-//	docIds := make([]utils.DocIdNode, 0)
-//	filterDocIds := make([]utils.DocIdNode, 0)
-//
-//	if len(queries) == 0 {
-//		return nil, true
-//	}
-//
-//	if len(queries) >= 1 {
-//		for _, seg := range idx.segments {
-//			docIds, _ = seg.SearchDocIds(queries[0], idx.bitmap, docIds)
-//		}
-//	}
-//
-//	if len(queries) == 1 {
-//		if filters == nil || len(filters) == 0 {
-//			return docIds, true
-//		}
-//
-//		if len(filters) == 1 {
-//			for _, seg := range idx.segments {
-//				filterDocIds, _ = seg.SearchDocFilter(filters[0], idx.bitmap, filterDocIds)
-//			}
-//			docIds, _ = utils.Interaction(docIds, filterDocIds)
-//		}
-//
-//		return docIds, true
-//	}
-//
-//	for _, query := range queries[1:] {
-//		subDocIds := make([]utils.DocIdNode, 0)
-//		for _, seg := range idx.segments {
-//			subDocIds, _ = seg.SearchDocIds(query, idx.bitmap, subDocIds)
-//		}
-//		docIds, _ = utils.InteractionWithDf(docIds, subDocIds, len(subDocIds), idx.MaxDocId)
-//	}
-//
-//	if filters == nil || len(filters) == 0 {
-//		return docIds, true
-//	}
-//
-//	return docIds, true
-//
-//}
-
 // SearchKeyDocIds
 // @Description 搜索某个字段的某个关键词的文档的方法
 // @Param query 查询结构体
@@ -742,10 +595,11 @@ func (idx *Index) SearchKeyDocIds(query utils.SearchQuery) ([]utils.DocIdNode, b
 
 	// 最终返回的结果
 	docIds := make([]utils.DocIdNode, 0)
-	// todo 添加多线程搜索
+
 	for _, seg := range idx.segments {
 		docIds, _ = seg.SearchDocIds(query, idx.bitmap, docIds)
 	}
+
 	if len(docIds) > 0 {
 		return docIds, true
 	}
@@ -761,7 +615,6 @@ func (idx *Index) SearchFilterDocIds(filter utils.SearchFilters) ([]uint64, bool
 
 	// 最终返回的结果
 	docIds := make([]uint64, 0)
-	// todo 添加多线程搜索
 	for _, seg := range idx.segments {
 		docIds, _ = seg.SearchDocFilter(filter, idx.bitmap, docIds)
 	}

@@ -96,6 +96,12 @@ func (gde *GoDanceEngine) DeleteField(indexName string, fieldName string) error 
 	return gde.idxManager.DeleteField(indexName, fieldName)
 }
 
+// AddDocument
+// @Description 新增文档
+// @Param params 请求参数
+// @Param body  请求体
+// @Return string JSON字符串
+// @Return error
 func (gde *GoDanceEngine) AddDocument(params map[string]string, body []byte) (string, error) {
 	indexName, hasIndex := params["index"]
 	if !hasIndex || indexName == "" {
@@ -117,12 +123,12 @@ func (gde *GoDanceEngine) DeleteDocument(params map[string]string) (string, erro
 		return Fail, errors.New(ParamsError)
 	}
 
-	pk, haspk := params["_pk"]
+	id, haspk := params["id"]
 	if !haspk {
 		return Fail, errors.New(NoPrimaryKey)
 	}
 
-	return gde.idxManager.deleteDocument(indexName, pk)
+	return gde.idxManager.deleteDocument(indexName, id)
 }
 func (gde *GoDanceEngine) UpdateDocument(params map[string]string, body []byte) (string, error) {
 	indexName, hasIndex := params["index"]

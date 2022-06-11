@@ -227,6 +227,47 @@ func (seg *Segment) SearchDocIds(query utils.SearchQuery,
 	return nowDocNodes, true
 }
 
+// SearchDocIdsSync
+// @Description 搜索段的方法
+// @Param query 查询结构体
+// @Param bitmap 位图，用于判断文档是否被删除
+// @Param nowDocNodes 原始切片
+// @Return []utils.DocIdNode 查找完成之后的切片
+// @Return bool 是否查找成功
+func (seg *Segment) SearchDocIdsSync(query utils.SearchQuery,
+	bitmap *utils.Bitmap) {
+
+	// 倒排查询的 ID 切片
+	var docIds []utils.DocIdNode
+	returnDocIds := make([]utils.DocIdNode, 0)
+	var ok bool
+
+	if query.Value == "" {
+		utils.DocIdChan <- make([]utils.DocIdNode, 0)
+		return
+	} else {
+		docIds, ok = seg.fields[query.FieldName].query(query.Value)
+		if !ok {
+			utils.DocIdChan <- make([]utils.DocIdNode, 0)
+			return
+		}
+	}
+
+	// bitmap去除被删除的文档
+	if bitmap != nil {
+		for _, docNode := range docIds {
+			if bitmap.GetBit(docNode.Docid) == 0 {
+				returnDocIds = append(returnDocIds, docNode)
+			}
+		}
+		utils.DocIdChan <- returnDocIds
+		return
+	}
+
+	utils.DocIdChan <- returnDocIds
+	return
+}
+
 func (seg *Segment) SearchDocFilter(filter utils.SearchFilters, bitmap *utils.Bitmap, nowDocIds []uint64) ([]uint64, bool) {
 
 	// 倒排查询的 ID 切片

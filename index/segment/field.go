@@ -114,7 +114,7 @@ func newFieldFromLocalFile(fieldName, segmentName string, start, max uint64,
 	}
 	f.pfiMmap.SetFileEnd(0)
 
-	f.Logger.Info("[INFO] Field %v Serialization Finish", f.fieldName)
+	f.Logger.Info("[INFO] Field %v Load Finish", f.fieldName)
 	if fieldType == utils.IDX_TYPE_STRING ||
 		fieldType == utils.IDX_TYPE_STRING_SEG {
 		f.ivt = newInvertFromLocalFile(fieldType, fieldName, segmentName, f.idxMmap, logger)
@@ -144,9 +144,8 @@ func (f *Field) addDocument(docId uint64, contentStr string) error {
 		return err
 	}
 
-	if f.fieldType != utils.IDX_TYPE_NUMBER &&
-		f.fieldType != utils.IDX_TYPE_DATE &&
-		f.fieldType != utils.IDX_TYPE_FLOAT &&
+	if (f.fieldType == utils.IDX_TYPE_STRING_SEG ||
+		f.fieldType == utils.IDX_TYPE_STRING) &&
 		f.ivt != nil {
 		if err := f.ivt.addDocument(docId, contentStr); err != nil {
 			f.Logger.Error("[ERROR] Field AddDocument :: Add Invert Document Error %v", err)
@@ -261,34 +260,6 @@ func (f *Field) serialization(segmentName string, btdb *tree.BTreeDB) error {
 			return err
 		}
 	}
-
-	//var err error
-	//f.idxMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_invert.idx", segmentName, f.fieldName), utils.MODE_APPEND)
-	//if err != nil {
-	//	f.Logger.Error("[ERROR] Mmap error : %v", err)
-	//}
-	//f.idxMmap.SetFileEnd(0)
-	//f.Logger.Debug("[INFO] Load Invert File : %v%v_invert.idx", segmentName, f.fieldName)
-	//
-	//f.pflMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_profile.pfl", segmentName, f.fieldName), utils.MODE_APPEND)
-	//if err != nil {
-	//	f.Logger.Error("[ERROR] Mmap error : %v", err)
-	//}
-	//f.pflMmap.SetFileEnd(0)
-	//
-	//f.pfiMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_profileindex.pfi", segmentName, f.fieldName), utils.MODE_APPEND)
-	//if err != nil {
-	//	f.Logger.Error("[ERROR] Mmap error : %v", err)
-	//}
-	//f.pfiMmap.SetFileEnd(0)
-	//
-	//f.dtlMmap, err = utils.NewMmap(fmt.Sprintf("%v%v_detail.dtl", segmentName, f.fieldName), utils.MODE_APPEND)
-	//if err != nil {
-	//	f.Logger.Error("[ERROR] Mmap error : %v", err)
-	//}
-	//f.dtlMmap.SetFileEnd(0)
-	//
-	//f.setMmap()
 
 	f.Logger.Info("[INFO] Field %v Serialization Finish", f.fieldName)
 
