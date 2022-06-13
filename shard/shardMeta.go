@@ -1,15 +1,15 @@
-package cluster
+package shard
 
-type ShardState int8
+type State int8
 
 const (
 	// UNAVAILABLE 不可用
-	UNAVAILABLE ShardState = iota
+	UNAVAILABLE State = iota
 	// AVAILABLE 可用
 	AVAILABLE
 )
 
-type ShardMeta struct {
+type Meta struct {
 	//分片Id
 	ShardId int64
 	//当前的节点Id
@@ -19,5 +19,5 @@ type ShardMeta struct {
 	//是否是主节点
 	Primary bool
 	//分片状态
-	State ShardState
+	State State
 }

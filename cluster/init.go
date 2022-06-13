@@ -64,7 +64,8 @@ func serverInit() {
 			//检查主节点是否近期发送过探活请求
 			overtime, randTime := checkHeatBeat()
 			//如果超时没收到心跳
-			if overtime {
+			//todo 需要判断自己是否就是Leader
+			if overtime && State.selfState.state != Leader {
 				//修改状态为无Leader
 				State.selfState.state = NoLeader
 				//如果是候选节点则开始选举

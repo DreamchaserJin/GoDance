@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"GoDance/shard"
 	"sync"
 )
 
@@ -41,6 +42,7 @@ type selfState struct {
 	//当前节点状态
 	state CMState
 	//当前节点认为的主节点Id
+	//todo 这里LeaderId只能有一个
 	masterId int64
 	//任期
 	term int64
@@ -83,7 +85,7 @@ type ShardRooting struct {
 	//主分片Id
 	PrimaryId int64
 	//分片情况
-	Rooting []ShardMeta
+	Rooting []shard.Meta
 }
 
 func (c *clusterState) addNode(np *node) {
