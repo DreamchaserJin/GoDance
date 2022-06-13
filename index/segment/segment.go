@@ -16,15 +16,14 @@ import (
 )
 
 type Segment struct {
-	StartDocId  uint64            `json:"startDocId"`
-	MaxDocId    uint64            `json:"maxDocId"`
-	SegmentName string            `json:"segmentName"`
-	FieldInfos  map[string]uint64 `json:"fields"`
+	StartDocId  uint64            `json:"startDocId"`  // 段内docId的最小值
+	MaxDocId    uint64            `json:"maxDocId"`    // 段内docId的最大值
+	SegmentName string            `json:"segmentName"` // 段的名称，序列化时文件名的一部分
+	FieldInfos  map[string]uint64 `json:"fields"`      // 记录段内字段的类型信息
 	Logger      *utils.Log4FE     `json:"-"`
-
-	fields   map[string]*Field
-	isMemory bool
-	btdb     *tree.BTreeDB
+	fields      map[string]*Field // 段内字段的
+	isMemory    bool              // 标识段是否在内存中
+	btdb        *tree.BTreeDB     // 段的数据库，用于存储各字段的正排索引
 }
 
 // NewEmptySegmentByFieldsInfo
@@ -226,6 +225,47 @@ func (seg *Segment) SearchDocIds(query utils.SearchQuery,
 	}
 
 	return nowDocNodes, true
+}
+
+// SearchDocIdsSync
+// @Description 搜索段的方法
+// @Param query 查询结构体
+// @Param bitmap 位图，用于判断文档是否被删除
+// @Param nowDocNodes 原始切片
+// @Return []utils.DocIdNode 查找完成之后的切片
+// @Return bool 是否查找成功
+func (seg *Segment) SearchDocIdsSync(query utils.SearchQuery,
+	bitmap *utils.Bitmap) {
+
+	// 倒排查询的 ID 切片
+	var docIds []utils.DocIdNode
+	returnDocIds := make([]utils.DocIdNode, 0)
+	var ok bool
+
+	if query.Value == "" {
+		utils.DocIdChan <- make([]utils.DocIdNode, 0)
+		return
+	} else {
+		docIds, ok = seg.fields[query.FieldName].query(query.Value)
+		if !ok {
+			utils.DocIdChan <- make([]utils.DocIdNode, 0)
+			return
+		}
+	}
+
+	// bitmap去除被删除的文档
+	if bitmap != nil {
+		for _, docNode := range docIds {
+			if bitmap.GetBit(docNode.Docid) == 0 {
+				returnDocIds = append(returnDocIds, docNode)
+			}
+		}
+		utils.DocIdChan <- returnDocIds
+		return
+	}
+
+	utils.DocIdChan <- returnDocIds
+	return
 }
 
 func (seg *Segment) SearchDocFilter(filter utils.SearchFilters, bitmap *utils.Bitmap, nowDocIds []uint64) ([]uint64, bool) {

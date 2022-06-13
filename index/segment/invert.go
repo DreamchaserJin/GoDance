@@ -28,20 +28,7 @@ type invert struct {
 	memoryHashMap map[string][]utils.DocIdNode
 	Logger        *utils.Log4FE
 	fst           *vellum.FST
-	//btree         *tree.BTreeDB
 }
-
-//func newEmptyFakeInvert(fieldType uint32, startDocId uint32, fieldName string, logger *utils.Log4FE) *invert {
-//	ivt := &invert{
-//		curDocId:      startDocId,
-//		isMemory:      true,
-//		fieldType:     fieldType,
-//		fieldName:     fieldName,
-//		memoryHashMap: nil,
-//		Logger:        logger,
-//	}
-//	return ivt
-//}
 
 func newEmptyInvert(fieldType uint64, startDocId uint64, fieldName string, logger *utils.Log4FE) *invert {
 	ivt := &invert{
@@ -96,8 +83,10 @@ func (ivt *invert) addDocument(docId uint64, contentStr string) error {
 	if ivt.memoryHashMap == nil {
 		ivt.memoryHashMap = make(map[string][]utils.DocIdNode)
 	}
+	// set集合用于存储不重复的分词
 	segset := make(map[string]struct{})
 	for _, val := range segResult {
+		// 对分词结果进行去重
 		if _, ok := segset[val]; !ok {
 			segset[val] = struct{}{}
 			docIdNode := utils.DocIdNode{Docid: docId, WordTF: tf[val]}
@@ -206,116 +195,6 @@ func (ivt *invert) setIdxMmap(mmap *utils.Mmap) {
 	ivt.idxMmap = mmap
 }
 
-//func (ivt *invert) setBtree(btdb *tree.BTreeDB) {
-//	ivt.btree = btdb
-//}
-
-//func (ivt *invert) mergeInvert(inverts []*invert, segmentName string, btdb *tree.BTreeDB) error {
-//	idxFileName := fmt.Sprintf("%v%v_invert.idx", segmentName, ivt.fieldName)
-//	idxFd, err := os.OpenFile(idxFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0644)
-//	if err != nil {
-//		return err
-//	}
-//	defer idxFd.Close()
-//
-//	fi, _ := idxFd.Stat()
-//	totalOffset := int(fi.Size())
-//
-//	ivt.btree = btdb
-//	type ivtMerge struct {
-//		ivt    *invert
-//		key    string
-//		docids []utils.DocIdNode
-//		pgnum  uint32
-//		index  int
-//	}
-//
-//	ivts := make([]ivtMerge, 0)
-//
-//	for _, i := range inverts {
-//		if i.btree == nil {
-//			continue
-//		}
-//
-//		key, _, pgnum, index, ok := ivt.GetFirstKV()
-//		if !ok {
-//			continue
-//		}
-//
-//		docIds, _ := ivt.queryTerm(key)
-//		ivts = append(ivts, ivtMerge{
-//			ivt:    i,
-//			key:    key,
-//			docids: docIds,
-//			pgnum:  pgnum,
-//			index:  index,
-//		})
-//	}
-//
-//	resflag := 0
-//	for i := range ivts {
-//		resflag = resflag | (1 << uint(i))
-//	}
-//	flag := 0
-//	for flag != resflag {
-//		maxkey := ""
-//		meridxs := make([]int, 0)
-//		for idx, ivt := range ivts {
-//
-//			if (flag>>uint(idx)&0x1) == 0 && maxkey < ivt.key {
-//				maxkey = ivt.key
-//				meridxs = make([]int, 0)
-//				meridxs = append(meridxs, idx)
-//				continue
-//			}
-//
-//			if (flag>>uint(idx)&0x1) == 0 && maxkey == ivt.key {
-//				meridxs = append(meridxs, idx)
-//				continue
-//			}
-//
-//		}
-//
-//		value := make([]utils.DocIdNode, 0)
-//
-//		for _, idx := range meridxs {
-//			value = append(value, ivts[idx].docids...)
-//
-//			key, _, pgnum, index, ok := ivts[idx].ivt.GetNextKV(ivts[idx].key)
-//			if !ok {
-//				flag = flag | (1 << uint(idx))
-//				continue
-//			}
-//
-//			ivts[idx].key = key
-//			ivts[idx].pgnum = pgnum
-//			ivts[idx].index = index
-//			ivts[idx].docids, ok = ivts[idx].ivt.queryTerm(key)
-//
-//		}
-//
-//		lens := len(value)
-//		lenBufer := make([]byte, 8)
-//		binary.LittleEndian.PutUint64(lenBufer, uint64(lens))
-//		idxFd.Write(lenBufer)
-//		buffer := new(bytes.Buffer)
-//		err = binary.Write(buffer, binary.LittleEndian, value)
-//		if err != nil {
-//			ivt.Logger.Error("[ERROR] invert --> Merge :: Error %v", err)
-//			return err
-//		}
-//		idxFd.Write(buffer.Bytes())
-//		ivt.btree.Set(ivt.fieldName, maxkey, uint64(totalOffset))
-//		totalOffset = totalOffset + 8 + lens*utils.DOCNODE_SIZE
-//
-//	}
-//
-//	ivt.memoryHashMap = nil
-//	ivt.isMemory = false
-//
-//	return nil
-//}
-
 func (ivt *invert) mergeInvert(inverts []*invert, segmentName string) error {
 
 	// 用于存放所有fst的迭代器
@@ -409,24 +288,6 @@ func (ivt *invert) mergeFSTIteratorList(segmentName string, mergeFSTNodes []*Fst
 		nodeList := make([]*FstNode, 0)
 		nodeList = append(nodeList, heap.Pop(&fstHeap).(*FstNode))
 		var node *FstNode
-		//if fstHeap.Len() > 0 {
-		//	node = heap.Pop(&fstHeap).(*FstNode)
-		//}
-		//for node != nil && node.Key == nodeList[len(nodeList)-1].Key {
-		//	nodeList = append(nodeList, node)
-		//	if fstHeap.Len() > 0 {
-		//		node = heap.Pop(&fstHeap).(*FstNode)
-		//	} else {
-		//		break
-		//	}
-		//}
-		//
-		//// 如果fstHeap的长度为0,说明整个mergeFstNodes都相同
-		//// 如果fstHeap的长度大于0, 循环退出条件为node.Key != nodeList[len(nodeList)-1].Key
-		//if fstHeap.Len() > 0 {
-		//	// 最后多抛出了一个，需要复位
-		//	heap.Push(&fstHeap, node)
-		//}
 
 		for fstHeap.Len() > 0 {
 			node = heap.Pop(&fstHeap).(*FstNode)

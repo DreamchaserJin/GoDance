@@ -6,7 +6,8 @@ import (
 	"net/http"
 )
 
-// CreateIndex 创建索引
+// CreateIndex
+// @Description 创建索引
 func CreateIndex() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		indexName := c.Query("index")
