@@ -4,5 +4,5 @@ GoDance整体采用主从架构，实现了Raft算法来保证元数据的一致
 
 
 ![输入图片说明](doc/img/image.png)
-![输入图片说明](doc/img/img1.png)
+
 详细设计方案和演示视频请看[GoDance汇总篇](https://h2fejdkch0.feishu.cn/docx/doxcnm1pp7Cfc7fLSJbU3y0zrld#doxcnmI6csEq066EMaWDwZ1E474)
