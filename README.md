@@ -1,4 +1,4 @@
-项目 **演示视频** 和 **详细设计方案** 请看[GoDance汇总篇](https://h2fejdkch0.feishu.cn/docx/doxcnm1pp7Cfc7fLSJbU3y0zrld#doxcnmI6csEq066EMaWDwZ1E474)
+项目 **演示视频** 和 **详细设计方案** 请看[GoDance分布式搜索引擎汇总篇](https://h2fejdkch0.feishu.cn/docx/doxcnm1pp7Cfc7fLSJbU3y0zrld#doxcnmI6csEq066EMaWDwZ1E474)
 
 GoDance是一款用go语言编写的分布式搜索引擎，同时也是一款分布式文档数据库。支持分布式搜索以及分布式存储功能，对外提供restful Api接口来操作GoDance。
 
